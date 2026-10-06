@@ -1,0 +1,155 @@
+import Cocoa
+import UserNotifications
+
+// Link the real Interactions.swift without starting its file/notification pump.
+let stateDir = NSTemporaryDirectory()
+func logLine(_ message: String) {}
+
+@main
+@MainActor
+struct NativeQuestionLayoutTests {
+    static func descendants(_ view: NSView) -> [NSView] {
+        [view] + view.subviews.flatMap(descendants)
+    }
+
+    static func main() {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.prohibited)
+        let cases: [(String, Int, Bool, NSSize)] = [
+            ("single short question", 1, false, NSSize(width: 640, height: 700)),
+            ("two short questions", 2, false, NSSize(width: 640, height: 700)),
+            ("three questions", 3, false, NSSize(width: 640, height: 700)),
+            ("long scrollable question", 1, true, NSSize(width: 640, height: 700)),
+            ("narrow resized window", 1, false, NSSize(width: 460, height: 400)),
+        ]
+        let controllers = cases.map { _, count, long, size in
+            let questions = (1...count).map { number in
+                NativeQuestion(id: "q\(number)", question: "请选择一个选项，也可以在下方补充文字。", header: nil,
+                    detail: long ? String(repeating: "这是一段完整显示并可滚动阅读的说明。\n", count: 30) : nil,
+                    options: [NativeOption(label: "选项 A", description: nil), NativeOption(label: "选项 B", description: nil)], multiSelect: false)
+            }
+            let request = NativeRequest(id: UUID().uuidString, kind: "questions", sessionId: "layout-test", title: "布局测试", subtitle: "布局测试", body: "", questions: questions, phase: "foreground")
+            let controller = QuestionWindow(request)
+            controller.window!.setContentSize(size)
+            controller.window!.contentView!.layoutSubtreeIfNeeded()
+            return controller
+        }
+        // Run after the production initial-scroll callback, with no visible
+        // window, so this test checks actual clipping rather than AX existence.
+        DispatchQueue.main.async {
+            var failures = 0
+            let markdown = renderedMarkdown("## 标题\n**选项** 与 `echo 中文`\n- 列表\n[文档](https://example.com)\n```json\n{\"ok\":true}\n```", bold: false)
+            let rendered = markdown.string as NSString
+            let boldFont = markdown.attribute(.font, at: rendered.range(of: "选项").location, effectiveRange: nil) as? NSFont
+            let codeFont = markdown.attribute(.font, at: rendered.range(of: "echo 中文").location, effectiveRange: nil) as? NSFont
+            let link = markdown.attribute(.link, at: rendered.range(of: "文档").location, effectiveRange: nil) as? URL
+            if markdown.string.contains("**") || !markdown.string.contains("• 列表") || !markdown.string.contains("{\"ok\":true}") || boldFont?.fontDescriptor.symbolicTraits.contains(.bold) != true || codeFont?.isFixedPitch != true || link?.absoluteString != "https://example.com" {
+                print("FAIL Markdown text, emphasis, code, lists or links"); failures += 1
+            }
+            let optionQuestion = NativeQuestion(id: "md", question: "**题目**", header: nil, detail: nil, options: [NativeOption(label: "**原始选项**", description: "`说明`")], multiSelect: false)
+            let optionEditor = QuestionEditor(optionQuestion, number: 1)
+            let optionButton = descendants(optionEditor.view).compactMap { $0 as? NSButton }.first!
+            optionButton.performClick(nil)
+            if optionEditor.answer["selected"] as? [String] != ["**原始选项**"] { print("FAIL Markdown changed the submitted option label"); failures += 1 }
+            let code = "echo \"中文\\n\"; $HOME # comment"
+            let colored = highlightedCode(code, language: "shell")
+            let source = code as NSString
+            let keywordColor = colored.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+            let stringColor = colored.attribute(.foregroundColor, at: source.range(of: "中文").location, effectiveRange: nil) as? NSColor
+            if colored.string != code || keywordColor == stringColor { print("FAIL Shell colors or original text preservation"); failures += 1 }
+            let json = "{\"command\":\"echo \\\"中文\\\"\",\"enabled\":true,\"count\":12}"
+            let coloredJSON = highlightedCode(json, language: "json")
+            let jsonSource = json as NSString
+            let keyColor = coloredJSON.attribute(.foregroundColor, at: jsonSource.range(of: "command").location, effectiveRange: nil) as? NSColor
+            let valueColor = coloredJSON.attribute(.foregroundColor, at: jsonSource.range(of: "echo").location, effectiveRange: nil) as? NSColor
+            if coloredJSON.string != json || keyColor == valueColor { print("FAIL JSON escaped strings or key/value colors"); failures += 1 }
+            let directory = NSTemporaryDirectory() + UUID().uuidString
+            try! FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(atPath: directory) }
+            let waiter = DesktopJumpWaiter(directory: directory)
+            var confirmations = 0
+            var navigationErrors = 0
+            waiter.wait(requestId: "own", sessionId: "target", createdAt: 1000) { error in
+                if error == nil { confirmations += 1 } else { navigationErrors += 1 }
+            }
+            func ack(_ id: String, _ session: String, _ created: Double, _ confirmed: Double) {
+                let data = try! JSONSerialization.data(withJSONObject: ["requestId": id, "sessionId": session, "createdAt": created, "confirmedAt": confirmed])
+                try! data.write(to: URL(fileURLWithPath: directory + "/jump-result.json"))
+            }
+            ack("other", "target", 1000, 2000); waiter.poll(at: 2000)
+            ack("own", "wrong", 1000, 2000); waiter.poll(at: 2000)
+            ack("own", "target", 1000, 999); waiter.poll(at: 2000)
+            if confirmations != 0 { print("FAIL foreign or stale ack confirmed navigation"); failures += 1 }
+            ack("own", "target", 1000, 2000); waiter.poll(at: 2000); waiter.poll(at: 2001)
+            if confirmations != 1 { print("FAIL matching ack did not settle once"); failures += 1 }
+            waiter.wait(requestId: "timeout", sessionId: "target", createdAt: 1000) { error in
+                if error == nil { confirmations += 1 } else { navigationErrors += 1 }
+            }
+            waiter.poll(at: 17000)
+            if navigationErrors != 1 || confirmations != 1 { print("FAIL missing ack did not report timeout"); failures += 1 }
+            else { print("PASS matching ack, stale/foreign ack and timeout") }
+            let rich = Data(#"{"id":"details-test","kind":"approval","sessionId":"s1","title":"请求批准","subtitle":"Old","body":"summary","sessionTitle":"真实名称","cwd":"/工作区","context":[{"role":"user","text":"为什么要执行？"}],"approval":{"toolName":"bash","reason":"需要权限","command":"printf '完整命令\\n'","arguments":"{\"command\":\"printf '完整命令\\\\n'\"}"}}"#.utf8)
+            let request = try! JSONDecoder().decode(NativeRequest.self, from: rich)
+            let details = QuestionWindow(request)
+            let views = descendants(details.window!.contentView!)
+            let hasDetails = details.window!.title.contains("真实名称") && views.compactMap { $0 as? NSTextView }.contains { $0.string == "printf '完整命令\\n'" }
+            print("\(hasDetails ? "PASS" : "FAIL") approval displays the exact command and real title")
+            if !hasDetails { failures += 1 }
+            let back = views.compactMap { $0 as? NSButton }.first { $0.title == "回到 DSH 会话" }!
+            var completion: ((String?) -> Void)?
+            NotificationInteractions.shared.openSession = { _, callback in completion = callback }
+            var closed = false
+            details.onClose = { closed = true }
+            details.setUnavailable(true)
+            back.performClick(nil)
+            details.setUnavailable(false)
+            completion?("跳转超时")
+            if closed { print("FAIL jump failure closed the panel"); failures += 1 }
+            let recovered = views.compactMap { $0 as? NSButton }.first { $0.title == "允许本次 (Allow)" }!.isEnabled
+            if !recovered { print("FAIL reconnect during failed jump kept approval disabled"); failures += 1 }
+            back.performClick(nil)
+            let allowButton = views.compactMap { $0 as? NSButton }.first { $0.title == "允许本次 (Allow)" }!
+            details.setUnavailable(true)
+            var accidentalSubmissions = 0
+            details.onSubmit = { _ in accidentalSubmissions += 1 }
+            allowButton.performClick(nil)
+            if allowButton.isEnabled || accidentalSubmissions != 0 { print("FAIL pending jump allowed a disconnected submission"); failures += 1 }
+            completion?(nil)
+            if !closed { print("FAIL confirmed jump did not close the panel"); failures += 1 }
+            else { print("PASS only confirmed navigation closes the panel") }
+            for (index, controller) in controllers.enumerated() {
+                let name = cases[index].0
+                let root = controller.window!.contentView!
+                root.layoutSubtreeIfNeeded()
+                let scroll = descendants(root).compactMap { $0 as? NSScrollView }.first!
+                let document = scroll.documentView!
+                let firstHeading = descendants(document).compactMap { $0 as? NSTextField }.first { $0.stringValue == "问题 1" }!
+                let headingRect = firstHeading.convert(firstHeading.bounds, to: document)
+                let visibleRect = scroll.documentVisibleRect
+                let visible = headingRect.width > 0 && headingRect.height > 0 && visibleRect.contains(headingRect)
+                print("\(visible ? "PASS" : "FAIL") \(name): first question \(NSStringFromRect(headingRect)), viewport \(NSStringFromRect(visibleRect))")
+                if !visible { failures += 1 }
+                if cases[index].2 {
+                    // Long content must remain navigable after the initial top
+                    // position and a later resize, including its final input.
+                    controller.window!.setContentSize(NSSize(width: 460, height: 400))
+                    root.layoutSubtreeIfNeeded()
+                    let resizedHeading = firstHeading.convert(firstHeading.bounds, to: document)
+                    let topVisible = scroll.documentVisibleRect.contains(resizedHeading)
+                    print("\(topVisible ? "PASS" : "FAIL") long question after resize: first question remains visible")
+                    if !topVisible { failures += 1 }
+                    let lastInputScroll = descendants(document).compactMap { $0 as? NSScrollView }.last!
+                    let bottom = max(0, document.bounds.height - scroll.contentView.bounds.height)
+                    scroll.contentView.scroll(to: NSPoint(x: 0, y: bottom))
+                    scroll.reflectScrolledClipView(scroll.contentView)
+                    let inputRect = lastInputScroll.convert(lastInputScroll.bounds, to: document)
+                    let inputVisible = scroll.documentVisibleRect.contains(inputRect)
+                    print("\(inputVisible ? "PASS" : "FAIL") long question end: input \(NSStringFromRect(inputRect)), viewport \(NSStringFromRect(scroll.documentVisibleRect))")
+                    if !inputVisible { failures += 1 }
+                }
+            }
+            exit(failures == 0 ? 0 : 1)
+        }
+        app.run()
+    }
+}

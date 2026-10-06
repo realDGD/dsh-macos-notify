@@ -1,0 +1,62 @@
+{
+  "name": "dsh-macos-notify",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Native macOS notifications, approvals and complete multi-question forms for DSH Desktop.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/",
+    "macos/*.swift",
+    "macos/*.sh",
+    "macos/Info.plist",
+    "scripts/",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "docs/compatibility.md"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --test tests/",
+    "test:native": "bash macos/test-layout.sh",
+    "check:release": "node scripts/release-check.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/realDGD/dsh-macos-notify.git"
+  },
+  "homepage": "https://github.com/realDGD/dsh-macos-notify#readme",
+  "bugs": {
+    "url": "https://github.com/realDGD/dsh-macos-notify/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "macos",
+    "notifications",
+    "approval"
+  ],
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.4"
+  }
+}

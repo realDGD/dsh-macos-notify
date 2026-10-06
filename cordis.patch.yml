@@ -1,0 +1,5 @@
+# The host exposes authenticated Desktop navigation RPC. The client performs
+# verified workspace/session selection and retains Web URL deep links.
+- insert:
+    - id: dsh-macos-notify
+      name: 'dsh-macos-notify'

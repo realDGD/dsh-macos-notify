@@ -1,0 +1,87 @@
+# DSH macOS Notify
+
+Native interactive macOS notifications for **DeepSeek Harness Desktop**. The DSH plugin and the background **DSH Notify.app** work together; notification clicks return to the corresponding Desktop workspace and session.
+
+原生 macOS 通知、审批与完整问答：通知点击返回 DSH Desktop 对应会话，无须浏览器或额外模型服务。
+
+- Allow once / Deny directly from approval notifications; default click opens complete approval details, command, raw parameters and related context.
+- One question reminder opens a scrollable multi-question form. Every question supports its original choices and independent multiline text input; submit the full batch once.
+- Session names, Markdown text and Shell/JSON highlighting. Display formatting never changes submitted option labels or copied commands.
+- DSH remains the decision owner. The first accepted answer wins; answered/cancelled requests are withdrawn and stale buttons cannot repeat an action. Temporary disconnection preserves open drafts.
+- Standalone completion/error producer, optional child-task summaries, per-kind switches, sound and current-session foreground quiet mode.
+- **DSH Settings → DSH Notify** shows connection/helper/permission/version status and a safe test-notification button.
+
+This is a community plugin, not an official DeepSeek product. Currently verified with **DSH Desktop 0.2.0-rc.2**. See [compatibility and verification](docs/compatibility.md).
+
+## Installation
+
+Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's Command Line Tools. Full Xcode and a paid signing certificate are not needed for local source builds. The current local verification machine is macOS 27.0.1 / Apple Silicon; older macOS and Intel machines need additional real-device validation.
+
+1. Clone this repository:
+
+   ```sh
+   git clone https://github.com/realDGD/dsh-macos-notify.git
+   cd dsh-macos-notify
+   ```
+
+2. Build and install the native helper:
+
+   ```sh
+   # Run once if Command Line Tools are not installed:
+   xcode-select --install
+   bash macos/install.sh
+   ```
+
+   Installation creates `~/Applications/DSH Notify.app` and a login LaunchAgent. Allow notifications for **DSH Notify** when macOS asks. If Desktop is installed at a different location, set `DSH_DESKTOP_APP` to its application path before building. Builds use the icon from your locally installed official Desktop; official binary/icon assets are not included in this repository or release.
+
+3. In **DSH Desktop → Settings → Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
+
+   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.2.0` after that tag is published, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
+
+4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it to confirm the expected session opens.
+
+For CLI installations the equivalent plugin step is `dsh plugin --profile <your-profile> add <path-to-checkout>`. Desktop users do not need to install another npm DSH executable. A versioned `.tgz` source package in GitHub Releases contains the same helper build/installation scripts.
+
+## Upgrade
+
+Update the checkout to the matching release, close any native question/approval windows, then run `bash macos/install.sh` again. The installer retains previous helper applications under the private state directory, preserves preferences and verifies that the previous helper exited before replacing it.
+
+Reinstall the plugin from the new release using DSH's plugin manager if necessary, and restart Desktop to load the new Host/client modules. Check the actual plugin and helper versions in **DSH Notify**. Do not judge success from the source version alone.
+
+For existing `dsh-notify-web` / `DSH Jump.app` users: the helper installation moves the known old app into a backup. Remove the old plugin and its old native completion/error relay from the active DSH bundle list before enabling this standalone package, to avoid duplicate notifications. Other plugins and conversation history are unaffected. The historical helper bundle ID and local state namespace are intentionally preserved so local notification permission and navigation compatibility can survive migration.
+
+## Uninstall
+
+Remove `dsh-macos-notify` in DSH's plugin manager, then run:
+
+```sh
+bash macos/uninstall.sh
+```
+
+The installer removes only its owned helper and startup file. It retains preferences and application backups. Restart Desktop to unload the Host plugin. Unknown applications/startup entries are never overwritten or removed.
+
+## Privacy and behavior
+
+No additional network listener, webhook, cloud service or model session is used. The official authenticated DSH Connection carries navigation and settings RPC. Same-user Host/helper records are exchanged atomically in a private directory (`0700`, files `0600`). Local question/approval content is needed for the native form; it is not exported by diagnostics. macOS notification previews can expose displayed text on the lock screen; use macOS preview settings according to your preference.
+
+Quiet mode suppresses reminders only. Explicitly opened forms stay available, and it never approves/rejects or answers a request automatically. Turning off a notification type does not disable that underlying DSH interaction.
+
+Task aggregation waits for descendant runs observed by the active plugin. A newly started root turn cancels its old held completion. Aborted/interrupted/blocked turns are silent. Cold installation does not replay old idle sessions.
+
+## Development
+
+```sh
+npm ci
+npm test
+npm run test:native     # macOS only; real AppKit components
+npm run check:release
+npm pack --dry-run
+```
+
+Node tests use the pinned DSH Cordis dependency and do not silently skip lifecycle tests. To verify against a particular installed Desktop artifact, set `DSH_CORDIS_MODULE` to that artifact's Cordis module. Public CI checks Node versions, native compilation/layout and package/privacy completeness. Real macOS notification acceptance and Desktop session selection remain separate live checks.
+
+Common Markdown is supported; tables and images are not specially rendered. Shell/JSON have semantic colors; other code blocks remain monospaced. Only HTTP(S) links are clickable.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The DSH name and locally sourced official icon identify integration with Desktop; this repository does not grant rights to third-party branding. Existing local notification permission uses a historical bundle identifier that is not a credential.

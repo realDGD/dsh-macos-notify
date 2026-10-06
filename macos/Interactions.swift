@@ -1,0 +1,668 @@
+import Cocoa
+import UserNotifications
+
+struct NativeOption: Codable { let label: String; let description: String? }
+struct NativeQuestion: Codable {
+    let id: String
+    let question: String
+    let header: String?
+    let detail: String?
+    let options: [NativeOption]?
+    let multiSelect: Bool?
+}
+struct NativeContext: Codable { let role: String; let text: String; let truncated: Bool? }
+struct NativeApproval: Codable {
+    let toolName: String; let reason: String?; let callId: String?
+    let arguments: String?; let command: String?
+}
+struct NativeRequest: Codable {
+    let id: String
+    let kind: String
+    let sessionId: String
+    let title: String
+    let subtitle: String
+    let body: String
+    let questions: [NativeQuestion]?
+    let phase: String?
+    var sessionTitle: String? = nil
+    var cwd: String? = nil
+    var context: [NativeContext]? = nil
+    var approval: NativeApproval? = nil
+    var displayTitle: String { sessionTitle ?? subtitle }
+}
+struct NativeSnapshot: Codable {
+    let version: Int; let updatedAt: Double; let requests: [NativeRequest]
+    var preferences: [String: Bool]? = nil
+    var quietSessionId: String? = nil
+}
+func nativePreferences() -> [String: Bool] {
+    let path = (stateDir as NSString).appendingPathComponent("settings.json")
+    guard let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size]) as? Int, size <= 4096,
+          let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+          let parsed = try? JSONDecoder().decode([String: Bool].self, from: data) else { return [:] }
+    return parsed
+}
+struct CommandResult: Codable { let status: String }
+
+// Waking Desktop is not proof of navigation. Only the authenticated plugin's
+// matching acknowledgement permits the initiating panel to close.
+final class DesktopJumpWaiter {
+    private struct Pending {
+        let sessionId: String; let createdAt: Double; let completion: (String?) -> Void
+    }
+    private let directory: String
+    private var pending: [String: Pending] = [:]
+    init(directory: String) { self.directory = directory }
+    func wait(requestId: String, sessionId: String, createdAt: Double, completion: @escaping (String?) -> Void) {
+        pending[requestId] = Pending(sessionId: sessionId, createdAt: createdAt, completion: completion)
+    }
+    func fail(requestId: String, message: String) { pending.removeValue(forKey: requestId)?.completion(message) }
+    func poll(at now: Double = Date().timeIntervalSince1970 * 1000) {
+        let path = (directory as NSString).appendingPathComponent("jump-result.json")
+        var ack: [String: Any]?
+        if let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size]) as? Int, size <= 4096,
+           let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
+            ack = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        }
+        for (id, item) in pending {
+            if ack?["requestId"] as? String == id, ack?["sessionId"] as? String == item.sessionId,
+               ack?["createdAt"] as? Double == item.createdAt,
+               let confirmed = ack?["confirmedAt"] as? Double, confirmed.isFinite,
+               confirmed >= item.createdAt, confirmed <= now + 10000 {
+                pending.removeValue(forKey: id)?.completion(nil)
+            } else if now - item.createdAt > 15000 {
+                fail(requestId: id, message: "未确认已打开目标会话，窗口已保留。请检查 DSH 后重试。")
+            }
+        }
+    }
+}
+
+func renderedMarkdown(_ text: String, bold: Bool) -> NSAttributedString {
+    let baseFont = bold ? NSFont.boldSystemFont(ofSize: 14) : NSFont.systemFont(ofSize: 13)
+    let output = NSMutableAttributedString(string: "")
+    var pieces = 0
+    func emit(_ value: NSAttributedString) {
+        if pieces > 0 { output.append(NSAttributedString(string: "\n", attributes: [.font: baseFont])) }
+        output.append(value); pieces += 1
+    }
+    func inline(_ source: String, font: NSFont) -> NSAttributedString {
+        guard let parsed = try? AttributedString(markdown: source, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else {
+            return NSAttributedString(string: source, attributes: [.font: font, .foregroundColor: NSColor.labelColor])
+        }
+        let result = NSMutableAttributedString(string: "")
+        for run in parsed.runs {
+            var style: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor]
+            let intent = run.inlinePresentationIntent
+            var runFont = font
+            if intent?.contains(.stronglyEmphasized) == true { runFont = NSFontManager.shared.convert(runFont, toHaveTrait: .boldFontMask) }
+            if intent?.contains(.emphasized) == true { runFont = NSFontManager.shared.convert(runFont, toHaveTrait: .italicFontMask) }
+            if intent?.contains(.code) == true {
+                runFont = .monospacedSystemFont(ofSize: 12, weight: .regular)
+                style[.backgroundColor] = NSColor.controlBackgroundColor
+            }
+            style[.font] = runFont
+            if let link = run.link, ["http", "https"].contains(link.scheme?.lowercased() ?? "") {
+                style[.link] = link; style[.foregroundColor] = NSColor.linkColor; style[.underlineStyle] = NSUnderlineStyle.single.rawValue
+            }
+            result.append(NSAttributedString(string: String(parsed[run.range].characters), attributes: style))
+        }
+        return result
+    }
+    let heading = try! NSRegularExpression(pattern: #"^ {0,3}(#{1,6})\s+(.+)$"#)
+    let list = try! NSRegularExpression(pattern: #"^(\s*)[-+*]\s+(.+)$"#)
+    let fence = try! NSRegularExpression(pattern: #"^ {0,3}(`{3,}|~{3,})([^\s]*)\s*$"#)
+    var code: [String] = [], delimiter: String?, language = ""
+    for line in text.components(separatedBy: "\n") {
+        let source = line as NSString
+        let range = NSRange(location: 0, length: source.length)
+        if let mark = fence.firstMatch(in: line, range: range) {
+            let candidate = source.substring(with: mark.range(at: 1))
+            if let opened = delimiter {
+                if candidate.first == opened.first && candidate.count >= opened.count && source.substring(with: mark.range(at: 2)).isEmpty {
+                    emit(highlightedCode(code.joined(separator: "\n"), language: language)); code = []; delimiter = nil
+                } else { code.append(line) }
+            } else {
+                delimiter = candidate
+                let hint = source.substring(with: mark.range(at: 2)).lowercased()
+                language = ["sh", "bash", "shell", "zsh"].contains(hint) ? "shell" : hint
+            }
+        } else if delimiter != nil { code.append(line) }
+        else if let match = heading.firstMatch(in: line, range: range) {
+            let level = match.range(at: 1).length
+            emit(inline(source.substring(with: match.range(at: 2)), font: .boldSystemFont(ofSize: CGFloat(max(14, 21 - level)))))
+        } else if let match = list.firstMatch(in: line, range: range) {
+            emit(inline(source.substring(with: match.range(at: 1)) + "• " + source.substring(with: match.range(at: 2)), font: baseFont))
+        } else if line.hasPrefix("> ") { emit(inline("│ " + String(line.dropFirst(2)), font: baseFont)) }
+        else { emit(inline(line, font: baseFont)) }
+    }
+    if delimiter != nil { emit(highlightedCode(code.joined(separator: "\n"), language: language)) }
+    return output
+}
+
+private func wrapped(_ text: String, bold: Bool = false, markdown: Bool = false) -> NSTextField {
+    let field = NSTextField(wrappingLabelWithString: text)
+    field.font = bold ? .boldSystemFont(ofSize: 14) : .systemFont(ofSize: 13)
+    if markdown { field.attributedStringValue = renderedMarkdown(text, bold: bold); field.allowsEditingTextAttributes = true }
+    field.isSelectable = true
+    field.lineBreakMode = .byWordWrapping
+    field.maximumNumberOfLines = 0
+    field.setContentCompressionResistancePriority(.required, for: .vertical)
+    return field
+}
+
+private final class QuestionDocumentView: NSView {
+    override var isFlipped: Bool { true }
+}
+
+final class QuestionEditor: NSObject, NSTextViewDelegate {
+    let question: NativeQuestion
+    let view = NSStackView()
+    let input = NSTextView()
+    private var buttons: [NSButton] = []
+    var changed: (() -> Void)?
+    init(_ question: NativeQuestion, number: Int) {
+        self.question = question
+        super.init()
+        view.orientation = .vertical
+        view.alignment = .leading
+        view.spacing = 9
+        func add(_ child: NSView) {
+            view.addArrangedSubview(child)
+            child.widthAnchor.constraint(equalTo: view.widthAnchor).isActive = true
+        }
+        add(wrapped("问题 \(number)\(question.header.map { " · " + $0 } ?? "")", bold: true))
+        add(wrapped(question.question, markdown: true))
+        if let detail = question.detail, !detail.isEmpty { add(wrapped(detail, markdown: true)) }
+        if !(question.options ?? []).isEmpty {
+            let hint = wrapped(question.multiSelect == true ? "可选择多个选项，也可以补充文字" : "可选择一个选项，也可以补充文字")
+            hint.textColor = .secondaryLabelColor
+            add(hint)
+        }
+        for (index, option) in (question.options ?? []).enumerated() {
+            let button = NSButton(title: "", target: self, action: #selector(selectOption(_:)))
+            button.setButtonType(question.multiSelect == true ? .switch : .radio)
+            button.tag = index
+            button.setAccessibilityLabel(option.label)
+            button.widthAnchor.constraint(equalToConstant: 22).isActive = true
+            buttons.append(button)
+            let label = wrapped(option.label + (option.description.map { "\n" + $0 } ?? ""), markdown: true)
+            let row = NSStackView(views: [button, label])
+            row.orientation = .horizontal
+            row.alignment = .top
+            row.spacing = 5
+            add(row)
+        }
+        add(wrapped("文字回答／补充（可与选项一起提交）"))
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        scroll.heightAnchor.constraint(equalToConstant: 90).isActive = true
+        input.isRichText = false
+        input.font = .systemFont(ofSize: 13)
+        input.isVerticallyResizable = true
+        input.isHorizontallyResizable = false
+        input.autoresizingMask = [.width]
+        input.textContainerInset = NSSize(width: 7, height: 7)
+        input.textContainer?.widthTracksTextView = true
+        input.delegate = self
+        input.setAccessibilityLabel("问题 \(number) 的文字回答")
+        scroll.documentView = input
+        add(scroll)
+        let separator = NSBox()
+        separator.boxType = .separator
+        add(separator)
+    }
+    @objc private func selectOption(_ sender: NSButton) {
+        if question.multiSelect != true { for button in buttons { button.state = button === sender ? .on : .off } }
+        changed?()
+    }
+    func textDidChange(_ notification: Notification) { changed?() }
+    var answered: Bool { buttons.contains { $0.state == .on } || !input.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var answer: [String: Any] {
+        ["id": question.id, "selected": buttons.filter { $0.state == .on }.map { question.options![$0.tag].label }, "custom": input.string]
+    }
+    func setEnabled(_ enabled: Bool) { for button in buttons { button.isEnabled = enabled }; input.isEditable = enabled }
+}
+
+private final class ContextSection: NSStackView {
+    private let contents = NSStackView()
+    init(_ request: NativeRequest) {
+        super.init(frame: .zero)
+        orientation = .vertical; alignment = .leading; spacing = 10
+        let toggle = NSButton(checkboxWithTitle: "查看相关上下文与会话信息", target: nil, action: nil)
+        toggle.target = self; toggle.action = #selector(toggleContext(_:))
+        addArrangedSubview(toggle)
+        contents.orientation = .vertical; contents.alignment = .leading; contents.spacing = 10
+        func add(_ text: String, markdown: Bool = false) {
+            let field = wrapped(text, markdown: markdown)
+            contents.addArrangedSubview(field)
+            field.widthAnchor.constraint(equalTo: contents.widthAnchor).isActive = true
+        }
+        for item in request.context ?? [] {
+            add((item.role == "user" ? "你的请求" : "助手说明") + "\n" + item.text
+                + (item.truncated == true ? "\n（较长内容显示前 20,000 字符，请回到 DSH 阅读全文。）" : ""), markdown: true)
+        }
+        if (request.context ?? []).isEmpty { add("此请求没有可用的前置文字上下文。") }
+        add("会话 ID：" + request.sessionId)
+        addArrangedSubview(contents)
+        contents.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
+        setVisibilityPriority(.notVisible, for: contents)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+    @objc private func toggleContext(_ sender: NSButton) {
+        setVisibilityPriority(sender.state == .on ? .mustHold : .notVisible, for: contents)
+    }
+}
+
+func highlightedCode(_ text: String, language: String) -> NSAttributedString {
+    let result = NSMutableAttributedString(string: text, attributes: [
+        .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular), .foregroundColor: NSColor.labelColor,
+    ])
+    // Color existing UTF-16 ranges only. Never parse/reserialize the command,
+    // replace escapes, or include colors in the copied plain text.
+    guard ["shell", "json"].contains(language) else { return result }
+    let pattern = language == "json"
+        ? ##"("(?:\\[\s\S]|[^"\\])*")(?=\s*:)|("(?:\\[\s\S]|[^"\\])*")|\b(?:true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|[{}\[\]:,]"##
+        : ##"'[^']*'|"(?:\\[\s\S]|[^"\\])*"|(?:^|(?<=[\s;]))#[^\n]*|\$\{[^}]*\}|\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9@?#$!*\-])|\b(?:if|then|else|elif|fi|for|in|do|done|while|case|esac|function|export|local|readonly|return|exit|echo|printf|cd|cat|date)\b|\b\d+\b|&&|\|\||[;|&<>]"##
+    guard let expression = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines]) else { return result }
+    let source = text as NSString
+    for match in expression.matches(in: text, range: NSRange(location: 0, length: source.length)) {
+        let token = source.substring(with: match.range)
+        let color: NSColor
+        if language == "json" {
+            if match.range(at: 1).location != NSNotFound { color = .systemBlue }
+            else if match.range(at: 2).location != NSNotFound { color = .systemGreen }
+            else if ["true", "false", "null"].contains(token) { color = .systemPurple }
+            else if token.first?.isNumber == true || token.hasPrefix("-") { color = .systemOrange }
+            else { color = .secondaryLabelColor }
+        } else if token.hasPrefix("#") { color = .secondaryLabelColor }
+        else if token.hasPrefix("\"") || token.hasPrefix("'") { color = .systemGreen }
+        else if token.hasPrefix("$") || token.first?.isNumber == true { color = .systemOrange }
+        else { color = .systemBlue }
+        result.addAttribute(.foregroundColor, value: color, range: match.range)
+    }
+    return result
+}
+
+private func readOnlyText(_ text: String, label: String, language: String) -> NSScrollView {
+    let scroll = NSScrollView()
+    scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
+    scroll.borderType = .bezelBorder
+    scroll.heightAnchor.constraint(equalToConstant: 180).isActive = true
+    let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 180))
+    view.isRichText = false; view.isEditable = false; view.isSelectable = true
+    view.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+    view.isVerticallyResizable = true; view.isHorizontallyResizable = true
+    view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+    view.textContainer?.widthTracksTextView = false
+    view.textContainer?.containerSize = view.maxSize
+    view.textContainerInset = NSSize(width: 7, height: 7)
+    view.textStorage?.setAttributedString(highlightedCode(text, language: language))
+    view.setAccessibilityLabel(label)
+    scroll.documentView = view
+    return scroll
+}
+
+final class QuestionWindow: NSWindowController, NSWindowDelegate {
+    let request: NativeRequest
+    private var editors: [QuestionEditor] = []
+    private let status = NSTextField(labelWithString: "")
+    private let submit = NSButton(title: "提交全部回答", target: nil, action: nil)
+    private let desktop = NSButton(title: "回到 DSH 会话", target: nil, action: nil)
+    private let allow = NSButton(title: "允许本次 (Allow)", target: nil, action: nil)
+    private let deny = NSButton(title: "拒绝 (Deny)", target: nil, action: nil)
+    private var navigating = false
+    private var sending = false
+    private var terminal = false
+    private var transitioning = false
+    private var unavailable = false
+    var acceptsAnswers: Bool { !terminal }
+    var onSubmit: ((Any) -> Void)?
+    var onClose: (() -> Void)?
+    init(_ request: NativeRequest) {
+        self.request = request
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 700), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        window.title = "DSH · " + request.displayTitle + (request.kind == "approval" ? " · 审批详情" : " · 问答")
+        window.minSize = NSSize(width: 460, height: 400)
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
+        window.delegate = self
+        let root = NSView()
+        window.contentView = root
+        let heading = NSStackView()
+        heading.orientation = .vertical; heading.alignment = .leading; heading.spacing = 5
+        for field in [wrapped(request.displayTitle, bold: true), wrapped(request.cwd ?? "")] {
+            heading.addArrangedSubview(field)
+            field.widthAnchor.constraint(equalTo: heading.widthAnchor).isActive = true
+        }
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        let document = QuestionDocumentView()
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 24
+        document.addSubview(stack)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        scroll.documentView = document
+        document.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 6),
+            stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -10),
+            stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 8),
+            stack.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -15),
+        ])
+        func addSection(_ view: NSView) {
+            stack.addArrangedSubview(view)
+            view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+        if request.kind == "approval" {
+            addSection(wrapped(request.approval?.toolName ?? request.body, bold: true))
+            if let reason = request.approval?.reason { addSection(wrapped("请求原因\n" + reason, markdown: true)) }
+            if let command = request.approval?.command {
+                addSection(wrapped("待执行命令", bold: true))
+                addSection(readOnlyText(command, label: "完整待执行命令", language: "shell"))
+                let copy = NSButton(title: "复制完整命令", target: self, action: #selector(copyCommand))
+                copy.bezelStyle = .rounded; stack.addArrangedSubview(copy)
+            }
+            if let arguments = request.approval?.arguments {
+                addSection(wrapped("完整工具参数（含权限与工作目录设置）", bold: true))
+                addSection(readOnlyText(arguments, label: "完整工具参数", language: "json"))
+            } else { addSection(wrapped("无法取得此请求的完整工具参数，请回到 DSH 核实后决定。")) }
+        }
+        addSection(ContextSection(request))
+        for (index, question) in (request.questions ?? []).enumerated() {
+            let editor = QuestionEditor(question, number: index + 1)
+            editor.changed = { [weak self] in self?.refresh() }
+            editors.append(editor)
+            stack.addArrangedSubview(editor.view)
+            editor.view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+        submit.target = self
+        submit.action = #selector(send)
+        submit.bezelStyle = .rounded
+        desktop.target = self; desktop.action = #selector(openDesktop)
+        desktop.bezelStyle = .rounded
+        allow.target = self; allow.action = #selector(sendDecision(_:)); allow.bezelStyle = .rounded
+        deny.target = self; deny.action = #selector(sendDecision(_:)); deny.bezelStyle = .rounded
+        let footer = NSStackView(views: request.kind == "approval" ? [desktop, deny, allow] : [desktop, submit])
+        footer.orientation = .horizontal
+        for child in [heading, scroll, status, footer] {
+            root.addSubview(child)
+            child.translatesAutoresizingMaskIntoConstraints = false
+        }
+        NSLayoutConstraint.activate([
+            heading.topAnchor.constraint(equalTo: root.topAnchor, constant: 18),
+            heading.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 20),
+            heading.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -20),
+            scroll.topAnchor.constraint(equalTo: heading.bottomAnchor, constant: 15),
+            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14),
+            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -14),
+            scroll.bottomAnchor.constraint(equalTo: status.topAnchor, constant: -12),
+            status.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 20),
+            status.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -20),
+            status.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -10),
+            footer.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -20),
+            footer.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -15),
+        ])
+        window.center()
+        refresh()
+        // A flipped document starts at its top-left. Scrolling to the document
+        // height places the viewport beyond its content and can show a blank form.
+        DispatchQueue.main.async {
+            root.layoutSubtreeIfNeeded()
+            scroll.contentView.scroll(to: .zero)
+            scroll.reflectScrolledClipView(scroll.contentView)
+        }
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+    func windowWillClose(_ notification: Notification) { onClose?() }
+    private func refresh() {
+        guard !terminal && !sending else { return }
+        if request.kind == "approval" {
+            allow.isEnabled = !unavailable && !navigating; deny.isEnabled = !unavailable && !navigating
+            if !navigating { status.stringValue = unavailable ? "暂时无法连接 DSH，请恢复连接后处理。" : "请核实命令、参数和权限后决定。" }
+            return
+        }
+        let count = editors.filter { $0.answered }.count
+        if !navigating { status.stringValue = unavailable ? "暂时无法连接 DSH，已保留草稿。恢复连接后可继续。" : (transitioning ? "DSH 正在将问题转入后台，请稍候…" : "已回答 \(count) / \(editors.count) · 每题至少选择一个选项或填写文字") }
+        submit.isEnabled = !unavailable && !transitioning && !navigating && !editors.isEmpty && count == editors.count
+    }
+    @objc private func send() {
+        guard submit.isEnabled, !sending, !terminal, !navigating else { return }
+        sending = true
+        submit.isEnabled = false
+        editors.forEach { $0.setEnabled(false) }
+        status.stringValue = "正在提交，请稍候…"
+        onSubmit?(["answers": editors.map { $0.answer }])
+    }
+    @objc private func copyCommand() {
+        guard let command = request.approval?.command else { return }
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(command, forType: .string)
+    }
+    @objc private func sendDecision(_ sender: NSButton) {
+        guard sender.isEnabled, !sending, !terminal, !navigating else { return }
+        sending = true; allow.isEnabled = false; deny.isEnabled = false
+        status.stringValue = "正在提交，请稍候…"
+        onSubmit?(sender === allow ? "allowed-once" : "rejected")
+    }
+    @objc private func openDesktop() {
+        guard !navigating, let open = NotificationInteractions.shared.openSession else { return }
+        navigating = true; desktop.isEnabled = false
+        refresh()
+        status.stringValue = "正在打开目标 DSH 会话…"
+        open(request.sessionId) { [weak self] error in
+            guard let self = self else { return }
+            self.navigating = false; self.desktop.isEnabled = true
+            self.refresh()
+            if let error = error { self.status.stringValue = error }
+            else { self.close() }
+        }
+    }
+    func finish(_ message: String) {
+        guard !terminal else { return }
+        terminal = true
+        sending = false
+        submit.isEnabled = false; allow.isEnabled = false; deny.isEnabled = false
+        editors.forEach { $0.setEnabled(false) }
+        status.stringValue = message
+    }
+    func markSending() {
+        guard !terminal else { return }
+        sending = true; submit.isEnabled = false; allow.isEnabled = false; deny.isEnabled = false
+        editors.forEach { $0.setEnabled(false) }
+        status.stringValue = "正在提交，请稍候…"
+    }
+    func failed(_ message: String) {
+        guard !terminal else { return }
+        sending = false
+        editors.forEach { $0.setEnabled(true) }
+        refresh()
+        status.stringValue = message
+    }
+    func setTransitioning(_ value: Bool) { guard transitioning != value else { return }; transitioning = value; refresh() }
+    func setUnavailable(_ value: Bool) {
+        guard unavailable != value else { return }
+        unavailable = value
+        if !terminal && !sending { editors.forEach { $0.setEnabled(!value) } }
+        refresh()
+    }
+    func present() { showWindow(nil); NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
+}
+
+final class NotificationInteractions {
+    static let shared = NotificationInteractions()
+    static let categoryApproval = "DSH_APPROVAL"
+    static let categoryQuestions = "DSH_QUESTIONS"
+    static let allow = "DSH_ALLOW_ONCE"
+    static let deny = "DSH_DENY"
+    static let answer = "DSH_ANSWER"
+    static let details = "DSH_DETAILS"
+    var openSession: ((String, @escaping (String?) -> Void) -> Void)?
+    private var active: [String: NativeRequest] = [:]
+    private var seen = Set<String>()
+    private var windows: [String: QuestionWindow] = [:]
+    private var pendingCommands: [String: (NativeRequest, Date)] = [:]
+    private var submitting = Set<String>()
+    private var center: UNUserNotificationCenter { .current() }
+    func register() {
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: Self.categoryApproval, actions: [
+                UNNotificationAction(identifier: Self.allow, title: "允许本次 (Allow)", options: []),
+                UNNotificationAction(identifier: Self.deny, title: "拒绝 (Deny)", options: [.destructive]),
+                UNNotificationAction(identifier: Self.details, title: "查看详情", options: [.foreground]),
+            ], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: Self.categoryQuestions, actions: [
+                UNNotificationAction(identifier: Self.answer, title: "打开完整问答", options: [.foreground]),
+            ], intentIdentifiers: [], options: []),
+        ])
+    }
+    func poll() {
+        let path = (stateDir as NSString).appendingPathComponent("interactions.json")
+        var requests: [NativeRequest] = []
+        var connected = false
+        var preferences: [String: Bool] = [:]
+        var quietSessionId: String?
+        if let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size]) as? Int,
+           size <= 4 * 1024 * 1024,
+           let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+           let snapshot = try? JSONDecoder().decode(NativeSnapshot.self, from: data),
+           snapshot.version == 1,
+           abs(Date().timeIntervalSince1970 * 1000 - snapshot.updatedAt) < 5000 {
+            requests = snapshot.requests
+            preferences = snapshot.preferences ?? [:]
+            quietSessionId = snapshot.quietSessionId
+            connected = true
+        }
+        let next = Dictionary(requests.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for id in Set(active.keys).union(windows.keys) where next[id] == nil {
+            center.removeDeliveredNotifications(withIdentifiers: ["interaction-" + id])
+            center.removePendingNotificationRequests(withIdentifiers: ["interaction-" + id])
+            if !connected {
+                // Sleep/App Nap or transient I/O can age a snapshot without
+                // settling its request. Pause safely, retaining the draft.
+                windows[id]?.setUnavailable(true)
+                seen.remove(id)
+            } else if !submitting.contains(id) { windows[id]?.finish("此请求已在 DSH 回答、取消或失效，无需再次提交。") }
+        }
+        active = next
+        for request in requests {
+            windows[request.id]?.setUnavailable(false)
+            windows[request.id]?.setTransitioning(request.phase == "transitioning")
+        }
+        for request in requests where !seen.contains(request.id) {
+            if preferences[request.kind == "approval" ? "approval" : "questions"] != false && request.sessionId != quietSessionId { seen.insert(request.id); post(request) }
+        }
+        // Also clean notifications left by a previous helper process.
+        center.getDeliveredNotifications { [weak self] notices in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                let ids = Set(self.active.keys.map { "interaction-" + $0 })
+                let expired = notices.map { $0.request.identifier }.filter { $0.hasPrefix("interaction-") && !ids.contains($0) }
+                self.center.removeDeliveredNotifications(withIdentifiers: expired)
+            }
+        }
+        for (commandId, (request, started)) in pendingCommands {
+            let requestId = request.id
+            let resultPath = (stateDir as NSString).appendingPathComponent("results/\(commandId).json")
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: resultPath)),
+               let result = try? JSONDecoder().decode(CommandResult.self, from: data) {
+                pendingCommands.removeValue(forKey: commandId)
+                submitting.remove(requestId)
+                try? FileManager.default.removeItem(atPath: resultPath)
+                logLine("interaction-result request=\(requestId) status=\(result.status)")
+                if result.status == "accepted" { windows[requestId]?.finish(request.kind == "approval" ? "决定已提交，DSH 已接受。" : "已提交全部回答。") }
+                else if result.status == "stale" {
+                    if let window = windows[requestId] { window.finish("请求已回答或失效，本次没有重复提交。") }
+                    else { resultNotice(request, message: "请求已回答或失效，本次没有重复提交。") }
+                } else if result.status == "waiting" { windows[requestId]?.failed("问题正在转入后台，请稍后提交。") }
+                else { reportFailure(request, message: "提交未成功（\(result.status)），请检查回答或回到 DSH。", retryable: true) }
+            } else if Date().timeIntervalSince(started) > 15 {
+                pendingCommands.removeValue(forKey: commandId)
+                // Do not auto-retry a command whose Host result is unknown.
+                reportFailure(request, message: "未收到确认，请回到 DSH 核实结果。本助手不会自动重试。", retryable: false)
+                logLine("interaction-result-timeout request=\(requestId)")
+            }
+        }
+        writePanelLease()
+    }
+    private func post(_ request: NativeRequest) {
+        let content = UNMutableNotificationContent()
+        content.title = request.title
+        content.subtitle = request.subtitle
+        content.body = request.body
+        content.sound = nativePreferences()["sound"] == false ? nil : .default
+        content.categoryIdentifier = request.kind == "approval" ? Self.categoryApproval : Self.categoryQuestions
+        content.userInfo = ["interactionId": request.id, "sessionId": request.sessionId]
+        center.add(UNNotificationRequest(identifier: "interaction-" + request.id, content: content, trigger: nil)) { error in
+            logLine(error.map { "interaction-post-failed \($0.localizedDescription)" } ?? "interaction-posted request=\(request.id) kind=\(request.kind)")
+        }
+    }
+    func handle(id: String, action: String) {
+        poll()
+        guard let request = active[id] else { windows[id]?.finish("请求已回答或失效。"); logLine("interaction-click-stale request=\(id)"); return }
+        if action == Self.allow || action == Self.deny {
+            submit(request, answer: action == Self.allow ? "allowed-once" : "rejected")
+        } else { showQuestions(request) }
+    }
+    func showQuestions(_ request: NativeRequest) {
+        if let existing = windows[request.id] { existing.present(); return }
+        let controller = QuestionWindow(request)
+        controller.onSubmit = { [weak self] answer in self?.submit(request, answer: answer) }
+        controller.onClose = { [weak self] in self?.windows.removeValue(forKey: request.id); self?.writePanelLease() }
+        windows[request.id] = controller
+        controller.setTransitioning(request.phase == "transitioning")
+        controller.present()
+        writePanelLease()
+    }
+    private func writePanelLease() {
+        let ids = windows.filter { $0.value.request.kind == "questions" && $0.value.acceptsAnswers && active[$0.key] != nil }.map { $0.key }
+        let path = (stateDir as NSString).appendingPathComponent("open-panels.json")
+        if let data = try? JSONSerialization.data(withJSONObject: ["updatedAt": Date().timeIntervalSince1970 * 1000, "ids": ids]) {
+            try? data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
+        }
+    }
+    private func submit(_ request: NativeRequest, answer: Any) {
+        guard !submitting.contains(request.id) else { return }
+        guard active[request.id] != nil else {
+            windows[request.id]?.finish("请求已提交或失效。")
+            return
+        }
+        let commandId = UUID().uuidString
+        let directory = (stateDir as NSString).appendingPathComponent("commands")
+        do {
+            try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let data = try JSONSerialization.data(withJSONObject: ["commandId": commandId, "requestId": request.id, "answer": answer])
+            let path = (directory as NSString).appendingPathComponent(commandId + ".json")
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
+            submitting.insert(request.id)
+            windows[request.id]?.markSending()
+            pendingCommands[commandId] = (request, Date())
+            logLine("interaction-submitted request=\(request.id)")
+        } catch {
+            reportFailure(request, message: "无法提交：\(error.localizedDescription)。请回到 DSH 处理。", retryable: true)
+            logLine("interaction-submit-failed \(error.localizedDescription)")
+        }
+    }
+    private func reportFailure(_ request: NativeRequest, message: String, retryable: Bool) {
+        if let window = windows[request.id] {
+            if retryable { window.failed(message) } else { window.finish(message) }
+        } else { resultNotice(request, message: message) }
+    }
+    private func resultNotice(_ request: NativeRequest, message: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "DSH · 请求处理提示"
+        content.subtitle = request.subtitle
+        content.body = message
+        var components = URLComponents(string: "http://127.0.0.1:3080/")!
+        components.queryItems = [URLQueryItem(name: "session", value: request.sessionId)]
+        content.userInfo = ["url": components.url!.absoluteString]
+        center.add(UNNotificationRequest(identifier: "dsh-result-" + UUID().uuidString, content: content, trigger: nil)) { error in
+            if let error = error { logLine("interaction-result-notice-failed \(error.localizedDescription)") }
+        }
+    }
+}

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 与已退役的 AppleScript applet 保持同一 bundle id：macOS 的通知授权是按
+	     bundle id 记的，沿用它可以继承用户已经授予的通知权限，不必再授权一次。
+	     如果换了 id，用户需要在"系统设置 → 通知"里重新允许。 -->
+	<key>CFBundleIdentifier</key>
+	<string>com.dgd.dsh-jump-notifier</string>
+
+	<key>CFBundleExecutable</key>
+	<string>DSHNotify</string>
+	<key>CFBundleName</key>
+	<string>DSH Notify</string>
+	<key>CFBundleDisplayName</key>
+	<string>DSH Notify</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleIconFile</key>
+	<string>icon.icns</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.2.0</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+
+	<!-- agent 应用：没有 Dock 图标、没有菜单栏，只在后台等 pending.txt 并投递通知。 -->
+	<key>LSUIElement</key>
+	<true/>
+
+	<!-- 跳转时优先**复用已有的 DSH 标签页**（而不是每次新开一个），为此需要用 Apple Events
+	     控制 Chrome。首次点击通知时 macOS 会弹一次授权；拒绝也不会坏事——助手会自动回退到
+	     "新开标签页"。这段文字就是那个弹窗里显示的说明。 -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>跳转时复用已有的 DSH 标签页，避免每次通知都新开一个标签页。</string>
+
+	<key>NSHighResolutionCapable</key>
+	<true/>
+</dict>
+</plist>

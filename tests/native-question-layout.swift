@@ -129,7 +129,7 @@ struct NativeQuestionLayoutTests {
             }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.writeObjects(clipboard)
-            let longCommand = "echo " + String(repeating: "veryLongToken中文", count: 120)
+            let longCommand = "echo " + String(repeating: "veryLongTokenWithoutBreaks", count: 120) + String(repeating: "中文", count: 80)
             let wrappingRequest = NativeRequest(id: "wrap", kind: "approval", sessionId: "s1", title: "换行", subtitle: "", body: "", questions: nil, phase: "foreground", approval: NativeApproval(toolName: "bash", reason: "", callId: nil, arguments: "{\"command\":\"" + longCommand + "\"}", command: longCommand))
             let wrappingWindow = QuestionWindow(wrappingRequest)
             wrappingWindow.window!.setContentSize(NSSize(width: 460, height: 400))
@@ -139,7 +139,7 @@ struct NativeQuestionLayoutTests {
                 textView.layoutManager!.ensureLayout(for: textView.textContainer!)
                 let used = textView.layoutManager!.usedRect(for: textView.textContainer!)
                 if scrollView.hasHorizontalScroller || textView.isHorizontallyResizable || textView.textContainer?.widthTracksTextView != true || used.width > scrollView.contentSize.width || used.height <= 24 {
-                    print("FAIL command/arguments do not wrap at narrow width: \(used)"); failures += 1
+                    print("FAIL command/arguments do not wrap at narrow width: used=\(used), frame=\(textView.frame), container=\(textView.textContainer!.containerSize), clip=\(scrollView.contentSize)"); failures += 1
                 }
             }
             let back = views.compactMap { $0 as? NSButton }.first { $0.title == "回到 DSH 会话" }!

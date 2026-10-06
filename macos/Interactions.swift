@@ -262,7 +262,10 @@ private final class ContextSection: NSStackView {
 }
 
 func highlightedCode(_ text: String, language: String) -> NSAttributedString {
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.lineBreakMode = .byCharWrapping
     let result = NSMutableAttributedString(string: text, attributes: [
+        .paragraphStyle: paragraph,
         .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular), .foregroundColor: NSColor.labelColor,
     ])
     // Color existing UTF-16 ranges only. Never parse/reserialize the command,
@@ -296,14 +299,17 @@ func readOnlyText(_ text: String, label: String, language: String) -> NSScrollVi
     scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = false
     scroll.borderType = .bezelBorder
     scroll.heightAnchor.constraint(equalToConstant: 180).isActive = true
-    let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 180))
+    // Match the initial clip width (zero before layout), so autoresizing
+    // follows clip growth without retaining an independent 600px baseline.
+    // The macOS 15 regression also checks the final glyph bounds.
+    let view = NSTextView(frame: NSRect(x: 0, y: 0, width: scroll.contentSize.width, height: 180))
     view.isRichText = false; view.isEditable = false; view.isSelectable = true
     view.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
     view.isVerticallyResizable = true; view.isHorizontallyResizable = false
     view.autoresizingMask = [.width]
     view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
     view.textContainer?.widthTracksTextView = true
-    view.textContainer?.containerSize = NSSize(width: 600, height: CGFloat.greatestFiniteMagnitude)
+    view.textContainer?.containerSize = NSSize(width: scroll.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
     view.textContainer?.lineBreakMode = .byCharWrapping
     view.textContainerInset = NSSize(width: 7, height: 7)
     view.textStorage?.setAttributedString(highlightedCode(text, language: language))

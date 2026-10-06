@@ -4,9 +4,9 @@ Native interactive macOS notifications for **DeepSeek Harness Desktop**. The DSH
 
 原生 macOS 通知、审批与完整问答：通知点击返回 DSH Desktop 对应会话，无须浏览器或额外模型服务。
 
-- Allow once / Deny directly from approval notifications; default click opens complete approval details, command, raw parameters and related context.
+- Allow once / Deny directly from approval notifications; default click opens complete approval details, command, formatted parameters (with exact original view/copy) and related context.
 - One question reminder opens a scrollable multi-question form. Every question supports its original choices and independent multiline text input; submit the full batch once.
-- Session names, Markdown text and Shell/JSON highlighting. Display formatting never changes submitted option labels or copied commands.
+- Soft-wrapped commands/parameters, session names, Markdown context with tables and LaTeX formulas, and Shell/JSON highlighting. Display formatting never changes submitted option labels or copied commands.
 - DSH remains the decision owner. The first accepted answer wins; answered/cancelled requests are withdrawn and stale buttons cannot repeat an action. Temporary disconnection preserves open drafts.
 - Standalone completion/error producer, optional child-task summaries, per-kind switches, sound and current-session foreground quiet mode.
 - **DSH Settings → DSH Notify** shows connection/helper/permission/version status and a safe test-notification button.
@@ -36,7 +36,7 @@ Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's C
 
 3. In DSH Desktop, open the left sidebar’s **Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
 
-   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.2.0`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
+   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.3.0`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
 
 4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it to confirm the expected session opens.
 
@@ -80,7 +80,9 @@ npm pack --dry-run
 
 Node tests use the pinned DSH Cordis dependency and do not silently skip lifecycle tests. To verify against a particular installed Desktop artifact, set `DSH_CORDIS_MODULE` to that artifact's Cordis module. Public CI checks Node versions, native compilation/layout and package/privacy completeness. Real macOS notification acceptance and Desktop session selection remain separate live checks.
 
-Common Markdown is supported; tables and images are not specially rendered. Shell/JSON have semantic colors; other code blocks remain monospaced. Only HTTP(S) links are clickable.
+Question/choice labels use native Markdown text formatting. The expanded context pane uses bundled, offline Markdown and KaTeX rendering for headings, lists, quotes, tables, code and formulas (`$…$`, `$$…$$`, `\(...\)`, `\[…\]`). Long context stays fully scrollable; long table cells wrap. A wide formula has its own scroll area so it remains readable. Shell/JSON have semantic colors; other code blocks remain monospaced. Remote images are shown as text placeholders, raw HTML is inert, and only explicitly clicked HTTP(S) links open externally.
+
+Approval parameters are indented without re-encoding JSON keys, numeric values or escapes. **查看原文** switches the display; **复制原始参数** copies the exact original. Both parameters and commands soft-wrap without horizontal scrollbars. These changes affect display only, never the underlying tool request.
 
 ## License
 

@@ -30,3 +30,10 @@ The current helper coordinates one local active DSH profile/state namespace. Mul
 - Downloaded the published release tarball and SHA256SUMS; its checksum matched. Archive ownership headers are normalized, and local state, session identifiers, machine paths and official binary/icon assets are excluded.
 - [Release-tag CI](https://github.com/realDGD/dsh-macos-notify/actions/runs/37544661825) passed Node 22, Node 24 and the hosted macOS native regression/build/signature jobs. These hosted checks do not certify actual notification behavior on every OS/architecture.
 - The renamed production helper posted the new safe test notification. The new user-click acceptance is still pending; prior real Allow/Deny/question callbacks and verified session navigation belong to the earlier native implementation.
+
+## v0.3.0 rendering checks
+
+- Node renderer regressions verify table/list/code rendering, four math delimiters, exact TeX in blockquotes/nested lists, inert HTML, blocked image loading, invalid-formula fallback and all vendored file/font hashes and notices.
+- Real native AppKit checks cover parameter formatting/original view/copy, large numbers/escapes/duplicate keys/leading combining characters, narrow-window command/parameter wrapping and existing question/navigation regressions.
+- Actual WebKit in the native question disclosure loads local fonts, renders tables and formulas, wraps long table cells, keeps a bounded scrollable context pane and blocks programmatic external navigation. The context renderer loads only when expanded.
+- This is component/layout evidence. Live visible-window and notification-click acceptance remain separate checks; older macOS/Intel real-device validation is still required.

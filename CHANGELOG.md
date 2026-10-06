@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Approval arguments default to indented JSON, with exact original view and copy controls. Formatting preserves key order, numbers and string escapes.
+- Long commands and parameters soft-wrap at the current window width without horizontal scrollbars.
+- Expanded question/approval context renders Markdown tables, lists, quotes, code and LaTeX formulas using bundled offline components. Long content remains scrollable and table cells wrap.
+- Context is loaded only when expanded; rendering failure retains original text. The context view has no approval/answer capability and does not fetch remote images or execute supplied HTML.
+
 ## 0.2.0
 
 - Rename the plugin/repository to `dsh-macos-notify` and the helper to **DSH Notify.app**.

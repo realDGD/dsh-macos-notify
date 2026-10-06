@@ -34,9 +34,9 @@ Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's C
 
    Installation creates `~/Applications/DSH Notify.app` and a login LaunchAgent. Allow notifications for **DSH Notify** when macOS asks. If Desktop is installed at a different location, set `DSH_DESKTOP_APP` to its application path before building. Builds use the icon from your locally installed official Desktop; official binary/icon assets are not included in this repository or release.
 
-3. In **DSH Desktop → Settings → Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
+3. In DSH Desktop, open the left sidebar’s **Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
 
-   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.2.0` after that tag is published, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
+   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.2.0`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
 
 4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it to confirm the expected session opens.
 

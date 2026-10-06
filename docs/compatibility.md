@@ -18,7 +18,7 @@
 | Local source build and signature check | Current architecture can compile with CLT; bundle integrity verifies | Gatekeeper acceptance of downloaded prebuilt apps or Intel/older OS device verification |
 | Safe live notification click | Real callback and exact Desktop session ack on the test machine | Execution of real commands or new model messages |
 
-Prior implementation was verified on official Desktop 0.2.0-rc.2, macOS 27.0.1 / Apple Silicon. The new release's live deployment checks are recorded only once performed; no blanket support is claimed for older Desktop versions.
+Prior implementation was verified on official Desktop 0.2.0-rc.2, macOS 27.0.1 / Apple Silicon. For v0.2.0, the official package installer loaded the source tarball in a fresh isolated profile. The production Desktop loaded the renamed plugin, rendered the settings section, persisted a toggle through authenticated RPC, and reported matching plugin/helper versions plus authorized notification permission. The helper consumed and posted the safe test queue entry; the corresponding notification-click acceptance check is recorded separately. No blanket support is claimed for older Desktop versions.
 
 ## Operational limits
 

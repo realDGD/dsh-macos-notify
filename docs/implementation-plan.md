@@ -22,23 +22,24 @@ Spec: docs/design.md
 
 ## Task 1: Rename and standalone notification producer
 Files: package.json, cordis.patch.yml, lib/index.js, lib/client.js, lib/notifications.js, tests/notifications.test.mjs, macos/main.swift.
-- [ ] Add failing tests for official completion/error inputs, duplicate delivery, aborted turns, stale/new-turn aggregation and private queue files.
-- [ ] Implement the producer and rename package/client while retaining old RPC aliases and state namespace.
-- [ ] Run Node suite with exact Cordis runtime and compile native helper.
+- [x] Add failing tests for official completion/error inputs, duplicate delivery, aborted turns, stale/new-turn aggregation and private queue files.
+- [x] Implement the producer and rename package/client while retaining old RPC aliases and state namespace.
+- [x] Run Node suite with exact Cordis runtime and compile native helper.
 
 ## Task 2: Installation and public package
 Files: macos/build.sh, macos/install.sh, macos/uninstall.sh, scripts/install.mjs, scripts/release-check.mjs, tests/install.test.mjs, README.md, LICENSE, docs/compatibility.md, .github/workflows/ci.yml.
-- [ ] Test isolated installation, backup-preserving upgrade and ownership-safe removal.
-- [ ] Package all required sources/scripts, add explicit compatibility and privacy checks.
-- [ ] Validate package in an isolated profile and install helper using standalone CLT.
+- [x] Test isolated installation, backup-preserving upgrade and ownership-safe removal.
+- [x] Package all required sources/scripts, add explicit compatibility and privacy checks.
+- [x] Validate package in an isolated profile and install helper using standalone CLT.
 
 ## Task 3: Settings, aggregation and diagnostics
-Files: lib/settings.js, lib/settings-client.js, lib/notifications.js, lib/index.js, macos/main.swift, macos/Interactions.swift, tests/settings.test.mjs.
-- [ ] Add failing tests for validated preferences, authenticated status/save/test RPC and reminder suppression without loss of forms.
-- [ ] Add DSH settings section, sound/type/scope controls and helper/Host diagnostic projections.
-- [ ] Exercise the rendered settings in official Desktop and safe synthetic notifications.
+Files: lib/settings.js, lib/notifications.js, lib/index.js, macos/main.swift, macos/Interactions.swift, tests/settings.test.mjs.
+- [x] Add failing tests for validated preferences, authenticated status/save/test RPC and reminder suppression without loss of forms.
+- [x] Add DSH settings section, sound/type/scope controls and helper/Host diagnostic projections.
+- [x] Exercise the rendered settings in official Desktop and safe synthetic notifications.
 
 ## Task 4: Review, deployment and publication
-- [ ] Run complete Node/native/package/privacy checks and one independent final review.
-- [ ] Deploy without losing the prior app/profile; verify a real safe notification callback and selected session ack.
+- [x] Run complete Node/native/package/privacy checks and one independent final review.
+- [x] Deploy without losing the prior app/profile.
+- [ ] Verify the new safe notification callback and selected session ack.
 - [ ] Create public GitHub repository with `dsh-plugin` topic, push reviewed commits, attach source release and verify CI.

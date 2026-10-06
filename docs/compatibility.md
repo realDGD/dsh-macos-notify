@@ -23,3 +23,10 @@ Prior implementation was verified on official Desktop 0.2.0-rc.2, macOS 27.0.1 /
 ## Operational limits
 
 The current helper coordinates one local active DSH profile/state namespace. Multiple simultaneous Hosts sharing it require separate state directories/helpers and are not certified here. Aggregation can only track descendant runs observed while the plugin is loaded. Result-unknown submissions never auto-retry. Notification previews and action availability depend on macOS settings and available banner space; default approval click always opens details.
+
+## v0.2.0 distribution checks
+
+- Public GitHub installation `github:realDGD/dsh-macos-notify#v0.2.0` succeeded through the official package manager in a second isolated profile; no model or command was run.
+- Downloaded the published release tarball and SHA256SUMS; its checksum matched. Archive ownership headers are normalized, and local state, session identifiers, machine paths and official binary/icon assets are excluded.
+- [Release-tag CI](https://github.com/realDGD/dsh-macos-notify/actions/runs/37544661825) passed Node 22, Node 24 and the hosted macOS native regression/build/signature jobs. These hosted checks do not certify actual notification behavior on every OS/architecture.
+- The renamed production helper posted the new safe test notification. The new user-click acceptance is still pending; prior real Allow/Deny/question callbacks and verified session navigation belong to the earlier native implementation.

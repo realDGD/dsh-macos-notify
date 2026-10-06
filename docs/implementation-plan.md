@@ -42,4 +42,4 @@ Files: lib/settings.js, lib/notifications.js, lib/index.js, macos/main.swift, ma
 - [x] Run complete Node/native/package/privacy checks and one independent final review.
 - [x] Deploy without losing the prior app/profile.
 - [ ] Verify the new safe notification callback and selected session ack.
-- [ ] Create public GitHub repository with `dsh-plugin` topic, push reviewed commits, attach source release and verify CI.
+- [x] Create public GitHub repository with `dsh-plugin` topic, push reviewed commits, attach source release and verify CI.

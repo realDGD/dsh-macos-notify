@@ -15,7 +15,8 @@ if [[ -f "$DESKTOP_APP/Contents/Resources/icon.icns" ]]; then
 else
   /usr/libexec/PlistBuddy -c 'Delete :CFBundleIconFile' "$APP/Contents/Info.plist"
 fi
-xcrun swiftc -O -target "$(uname -m)-apple-macosx13.0" -o "$APP/Contents/MacOS/DSHNotify" "$HERE/main.swift" "$HERE/Interactions.swift"
+cp -R "$HERE/assets" "$APP/Contents/Resources/renderer"
+xcrun swiftc -O -target "$(uname -m)-apple-macosx13.0" -o "$APP/Contents/MacOS/DSHNotify" "$HERE/main.swift" "$HERE/Interactions.swift" "$HERE/MarkdownContext.swift"
 codesign --force --deep --sign - "$APP"
 codesign --verify --deep --strict "$APP"
 echo "Built: $APP (local ad-hoc signature; no official assets are distributed)"

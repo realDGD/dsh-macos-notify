@@ -226,7 +226,10 @@ final class QuestionEditor: NSObject, NSTextViewDelegate {
 
 private final class ContextSection: NSStackView {
     private let contents = NSStackView()
+    private var markdown: MarkdownContextView?
+    private let contextItems: [NativeContext]
     init(_ request: NativeRequest) {
+        contextItems = request.context ?? []
         super.init(frame: .zero)
         orientation = .vertical; alignment = .leading; spacing = 10
         let toggle = NSButton(checkboxWithTitle: "查看相关上下文与会话信息", target: nil, action: nil)
@@ -238,11 +241,6 @@ private final class ContextSection: NSStackView {
             contents.addArrangedSubview(field)
             field.widthAnchor.constraint(equalTo: contents.widthAnchor).isActive = true
         }
-        for item in request.context ?? [] {
-            add((item.role == "user" ? "你的请求" : "助手说明") + "\n" + item.text
-                + (item.truncated == true ? "\n（较长内容显示前 20,000 字符，请回到 DSH 阅读全文。）" : ""), markdown: true)
-        }
-        if (request.context ?? []).isEmpty { add("此请求没有可用的前置文字上下文。") }
         add("会话 ID：" + request.sessionId)
         addArrangedSubview(contents)
         contents.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
@@ -250,6 +248,15 @@ private final class ContextSection: NSStackView {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
     @objc private func toggleContext(_ sender: NSButton) {
+        if sender.state == .on {
+            if markdown == nil {
+                let view = MarkdownContextView(contextItems)
+                markdown = view
+                contents.insertArrangedSubview(view, at: 0)
+                view.widthAnchor.constraint(equalTo: contents.widthAnchor).isActive = true
+            }
+            markdown?.load()
+        }
         setVisibilityPriority(sender.state == .on ? .mustHold : .notVisible, for: contents)
     }
 }
@@ -284,23 +291,91 @@ func highlightedCode(_ text: String, language: String) -> NSAttributedString {
     return result
 }
 
-private func readOnlyText(_ text: String, label: String, language: String) -> NSScrollView {
+func readOnlyText(_ text: String, label: String, language: String) -> NSScrollView {
     let scroll = NSScrollView()
-    scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
+    scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = false
     scroll.borderType = .bezelBorder
     scroll.heightAnchor.constraint(equalToConstant: 180).isActive = true
     let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 600, height: 180))
     view.isRichText = false; view.isEditable = false; view.isSelectable = true
     view.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-    view.isVerticallyResizable = true; view.isHorizontallyResizable = true
+    view.isVerticallyResizable = true; view.isHorizontallyResizable = false
+    view.autoresizingMask = [.width]
     view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-    view.textContainer?.widthTracksTextView = false
-    view.textContainer?.containerSize = view.maxSize
+    view.textContainer?.widthTracksTextView = true
+    view.textContainer?.containerSize = NSSize(width: 600, height: CGFloat.greatestFiniteMagnitude)
+    view.textContainer?.lineBreakMode = .byCharWrapping
     view.textContainerInset = NSSize(width: 7, height: 7)
     view.textStorage?.setAttributedString(highlightedCode(text, language: language))
     view.setAccessibilityLabel(label)
     scroll.documentView = view
     return scroll
+}
+
+// Validate syntax, then change only insignificant whitespace outside strings.
+// JSONSerialization re-encoding would change key order, escapes and large numbers.
+func formattedArguments(_ original: String) -> String {
+    guard let data = original.data(using: .utf8),
+          (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) != nil else { return original }
+    var result = "", indent = 0, inString = false, escaped = false
+    func newline() { result += "\n" + String(repeating: "  ", count: indent) }
+    for character in original.unicodeScalars {
+        if inString {
+            result.unicodeScalars.append(character)
+            if escaped { escaped = false }
+            else if character == "\\" { escaped = true }
+            else if character == "\"" { inString = false }
+            continue
+        }
+        switch character {
+        case "\"":
+            if result.last == "{" || result.last == "[" { newline() }
+            inString = true; result.unicodeScalars.append(character)
+        case " ", "\n", "\r", "\t": continue
+        case "{", "[":
+            if result.last == "{" || result.last == "[" { newline() }
+            result.unicodeScalars.append(character); indent += 1
+        case "}", "]":
+            indent = max(0, indent - 1)
+            if result.last != "{" && result.last != "[" { newline() }
+            result.unicodeScalars.append(character)
+        case ",": result.unicodeScalars.append(character); newline()
+        case ":": result += ": "
+        default:
+            if result.last == "{" || result.last == "[" { newline() }
+            result.unicodeScalars.append(character)
+        }
+    }
+    return result
+}
+
+private final class ArgumentsSection: NSStackView {
+    private let original: String
+    private let formatted: String
+    private let text: NSTextView
+    init(_ arguments: String) {
+        original = arguments; formatted = formattedArguments(arguments)
+        let scroll = readOnlyText(formatted, label: "完整工具参数", language: "json")
+        text = scroll.documentView as! NSTextView
+        super.init(frame: .zero)
+        orientation = .vertical; alignment = .leading; spacing = 8
+        addArrangedSubview(scroll)
+        scroll.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
+        let toggle = NSButton(checkboxWithTitle: "查看原文", target: self, action: #selector(showOriginal(_:)))
+        let copy = NSButton(title: "复制原始参数", target: self, action: #selector(copyOriginal))
+        copy.bezelStyle = .rounded
+        let controls = NSStackView(views: [toggle, copy]); controls.spacing = 14
+        addArrangedSubview(controls)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+    @objc private func showOriginal(_ sender: NSButton) {
+        text.textStorage?.setAttributedString(highlightedCode(sender.state == .on ? original : formatted, language: "json"))
+        text.scrollRangeToVisible(NSRange(location: 0, length: 0))
+    }
+    @objc private func copyOriginal() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(original, forType: .string)
+    }
 }
 
 final class QuestionWindow: NSWindowController, NSWindowDelegate {
@@ -369,7 +444,7 @@ final class QuestionWindow: NSWindowController, NSWindowDelegate {
             }
             if let arguments = request.approval?.arguments {
                 addSection(wrapped("完整工具参数（含权限与工作目录设置）", bold: true))
-                addSection(readOnlyText(arguments, label: "完整工具参数", language: "json"))
+                addSection(ArgumentsSection(arguments))
             } else { addSection(wrapped("无法取得此请求的完整工具参数，请回到 DSH 核实后决定。")) }
         }
         addSection(ContextSection(request))

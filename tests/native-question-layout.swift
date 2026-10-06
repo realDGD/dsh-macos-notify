@@ -57,6 +57,17 @@ struct NativeQuestionLayoutTests {
             let keywordColor = colored.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
             let stringColor = colored.attribute(.foregroundColor, at: source.range(of: "中文").location, effectiveRange: nil) as? NSColor
             if colored.string != code || keywordColor == stringColor { print("FAIL Shell colors or original text preservation"); failures += 1 }
+            let combiningJSON = "{\"s\":\"\u{0301} a b\",\"n\":1}"
+            let combiningFormatted = formattedArguments(combiningJSON)
+            let combiningValue = try! JSONSerialization.jsonObject(with: Data(combiningFormatted.utf8)) as! [String: Any]
+            if combiningValue["s"] as? String != "\u{0301} a b" || !combiningFormatted.contains("\n  \"n\": 1") {
+                print("FAIL JSON lexical scan changed a leading combining character/string spaces"); failures += 1
+            }
+            let preciseJSON = #"{ "z":900719925474099312345, "a":1.20e+10, "z":"\\u4e2d", "list":[{},[],true,null] }"#
+            let formatted = formattedArguments(preciseJSON)
+            if !formatted.contains("900719925474099312345") || !formatted.contains("1.20e+10") || !formatted.contains(#""z": "\\u4e2d""#) || formattedArguments("{bad json") != "{bad json" {
+                print("FAIL JSON formatting changed numbers, escapes, duplicate keys or invalid source"); failures += 1
+            }
             let json = "{\"command\":\"echo \\\"中文\\\"\",\"enabled\":true,\"count\":12}"
             let coloredJSON = highlightedCode(json, language: "json")
             let jsonSource = json as NSString
@@ -95,6 +106,42 @@ struct NativeQuestionLayoutTests {
             let hasDetails = details.window!.title.contains("真实名称") && views.compactMap { $0 as? NSTextView }.contains { $0.string == "printf '完整命令\\n'" }
             print("\(hasDetails ? "PASS" : "FAIL") approval displays the exact command and real title")
             if !hasDetails { failures += 1 }
+            let argumentsView = views.compactMap { $0 as? NSTextView }.first { $0.accessibilityLabel() == "完整工具参数" }!
+            let expectedArguments = "{\n  \"command\": \"printf '完整命令\\\\n'\"\n}"
+            if argumentsView.string != expectedArguments {
+                print("FAIL arguments are not formatted with one property per line"); failures += 1
+            }
+            let rawToggle = views.compactMap { $0 as? NSButton }.first { $0.title == "查看原文" }
+            rawToggle?.performClick(nil)
+            if rawToggle == nil || argumentsView.string != request.approval?.arguments {
+                print("FAIL original arguments cannot be viewed exactly"); failures += 1
+            }
+            rawToggle?.performClick(nil)
+            let clipboard = NSPasteboard.general.pasteboardItems?.map { item -> NSPasteboardItem in
+                let saved = NSPasteboardItem()
+                for type in item.types { if let data = item.data(forType: type) { saved.setData(data, forType: type) } }
+                return saved
+            } ?? []
+            let copyArguments = views.compactMap { $0 as? NSButton }.first { $0.title == "复制原始参数" }
+            copyArguments?.performClick(nil)
+            if copyArguments == nil || NSPasteboard.general.string(forType: .string) != request.approval?.arguments {
+                print("FAIL copied arguments differ from original"); failures += 1
+            }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.writeObjects(clipboard)
+            let longCommand = "echo " + String(repeating: "veryLongToken中文", count: 120)
+            let wrappingRequest = NativeRequest(id: "wrap", kind: "approval", sessionId: "s1", title: "换行", subtitle: "", body: "", questions: nil, phase: "foreground", approval: NativeApproval(toolName: "bash", reason: "", callId: nil, arguments: "{\"command\":\"" + longCommand + "\"}", command: longCommand))
+            let wrappingWindow = QuestionWindow(wrappingRequest)
+            wrappingWindow.window!.setContentSize(NSSize(width: 460, height: 400))
+            wrappingWindow.window!.contentView!.layoutSubtreeIfNeeded()
+            for textView in descendants(wrappingWindow.window!.contentView!).compactMap({ $0 as? NSTextView }) {
+                let scrollView = textView.enclosingScrollView!
+                textView.layoutManager!.ensureLayout(for: textView.textContainer!)
+                let used = textView.layoutManager!.usedRect(for: textView.textContainer!)
+                if scrollView.hasHorizontalScroller || textView.isHorizontallyResizable || textView.textContainer?.widthTracksTextView != true || used.width > scrollView.contentSize.width || used.height <= 24 {
+                    print("FAIL command/arguments do not wrap at narrow width: \(used)"); failures += 1
+                }
+            }
             let back = views.compactMap { $0 as? NSButton }.first { $0.title == "回到 DSH 会话" }!
             var completion: ((String?) -> Void)?
             NotificationInteractions.shared.openSession = { _, callback in completion = callback }

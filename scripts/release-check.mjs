@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)))
 const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json'], { encoding: 'utf8' }))[0]
 const files = new Set(packed.files.map(f => f.path))
-for (const file of ['lib/index.js','lib/interactions.js','lib/notifications.js','lib/settings.js','lib/client.js','macos/main.swift','macos/Interactions.swift','macos/Info.plist','macos/build.sh','macos/install.sh','macos/uninstall.sh','scripts/install.mjs','LICENSE','README.md','cordis.patch.yml']) assert(files.has(file), `Missing package file: ${file}`)
+for (const file of ['lib/index.js','lib/interactions.js','lib/notifications.js','lib/settings.js','lib/client.js','macos/main.swift','macos/Interactions.swift','macos/MarkdownContext.swift','macos/assets/context.html','macos/assets/context.css','macos/assets/context.js','macos/assets/renderer.js','macos/assets/vendor/manifest.json','macos/assets/vendor/markdown-it/LICENSE','macos/assets/vendor/katex/LICENSE','THIRD_PARTY.md','CHANGELOG.md','macos/Info.plist','macos/build.sh','macos/install.sh','macos/uninstall.sh','scripts/install.mjs','LICENSE','README.md','cordis.patch.yml']) assert(files.has(file), `Missing package file: ${file}`)
 assert.equal(pkg.name, 'dsh-macos-notify')
 const plist = readFileSync(new URL('../macos/Info.plist', import.meta.url), 'utf8')
 assert(plist.includes(`<string>${pkg.version}</string>`), 'Native/plugin versions disagree')

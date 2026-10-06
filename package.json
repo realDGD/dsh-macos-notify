@@ -1,6 +1,6 @@
 {
   "name": "dsh-macos-notify",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Native macOS notifications, approvals and complete multi-question forms for DSH Desktop.",
   "type": "module",
@@ -15,11 +15,14 @@
     "macos/*.swift",
     "macos/*.sh",
     "macos/Info.plist",
+    "macos/assets/",
     "scripts/",
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
-    "docs/compatibility.md"
+    "docs/compatibility.md",
+    "THIRD_PARTY.md",
+    "CHANGELOG.md"
   ],
   "license": "MIT",
   "dsh": {

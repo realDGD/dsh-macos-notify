@@ -110,7 +110,7 @@ test('settings RPC persists preferences, rejects unknown secrets and reports onl
   assert.equal((await handler('save', { sound: false })).sound, false)
   assert.equal((await send('save', { secret: 'do-not-save' })).status, 400)
   const status = await handler('status', {})
-  assert.equal(status.version, '0.2.0')
+  assert.equal(status.version, JSON.parse(readFileSync(new URL('../package.json', import.meta.url))).version)
   assert.equal(status.helper.running, false)
   assert.equal(JSON.stringify(status).includes(dir), false)
   assert.equal((await handler('test', { sessionId: 'session-safe' })).queued, true)

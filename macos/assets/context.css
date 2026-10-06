@@ -1,0 +1,25 @@
+:root { color-scheme: light dark; font: 13px/1.65 -apple-system, BlinkMacSystemFont, sans-serif; }
+body { margin: 0; padding: 8px; background: transparent; overflow-x: hidden; }
+* { box-sizing: border-box; }
+main, section { min-width: 0; overflow-wrap: anywhere; }
+section + section { border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent); margin-top: 18px; padding-top: 14px; }
+.role { font-size: 12px; opacity: .65; margin-bottom: 8px; }
+h1, h2, h3, h4, h5, h6 { line-height: 1.35; margin: 16px 0 8px; }
+h1 { font-size: 22px; } h2 { font-size: 19px; } h3 { font-size: 16px; }
+p { margin: 8px 0; } ul, ol { padding-left: 24px; } li + li { margin-top: 4px; }
+blockquote { border-left: 3px solid #8888; margin: 12px 0; padding: 1px 12px; opacity: .85; }
+a { color: light-dark(#1766be, #76b6ff); }
+code, pre { font: 12px/1.65 ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+code { background: #8882; border-radius: 3px; padding: 1px 3px; }
+pre { background: #8881; border: 1px solid #8884; padding: 10px; border-radius: 6px; }
+pre code { background: transparent; padding: 0; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 12px 0; }
+th, td { border: 1px solid #8886; padding: 6px 8px; vertical-align: top; overflow-wrap: anywhere; }
+th { background: #8882; font-weight: 600; }
+tr:nth-child(even) td { background: #8881; }
+.katex-display { margin: 12px 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.katex { font-size: 1.1em; display: inline-block; max-width: 100%; vertical-align: middle; overflow-x: auto; overflow-y: hidden; padding: 2px 0; } .math-error { color: light-dark(#a22, #ff9c9c); }
+.image-placeholder, .truncated { opacity: .65; }
+.syntax-key, .syntax-keyword { color: light-dark(#1666bd, #81baff); }
+.syntax-string { color: light-dark(#24753b, #89cc92); }
+.syntax-comment { opacity: .6; }

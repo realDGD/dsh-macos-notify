@@ -1,13 +1,19 @@
 import Cocoa
 
+/// List movement is explicit: section arrows and keyboard selection, never wheel gestures.
+final class FixedMenuScrollView:NSScrollView {
+ override func scrollWheel(with event:NSEvent) {}
+}
+
 /// Each section owns its viewport. The current expanded root stays reachable.
 final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
- let table=MenuTableView(),scrollView=NSScrollView()
+ let table=MenuTableView(),scrollView=FixedMenuScrollView()
  private(set) var rows:[MenuVisibleRow]=[]
  private(set) var stickyRootId:String?
  private var nodes:[String:MenuNode]=[:],expanded=Set<String>(),stale=false,observer:NSObjectProtocol?
  private let sticky=NSVisualEffectView()
  var onOpen:((String)->Void)?,onToggle:((String)->Void)?
+ var onViewportChange:(()->Void)?
  var interactions:[String:[MenuInteraction]]=[:]
  var onInteraction:((MenuInteraction,MenuInteractionAction)->Void)?
  override init(frame:NSRect) {
@@ -18,7 +24,7 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
   table.intercellSpacing=NSSize(width:0,height:0);table.backgroundColor = .clear
   table.dataSource=self;table.delegate=self;table.target=self;table.action=#selector(clicked)
   scrollView.drawsBackground=false;scrollView.contentView.drawsBackground=false;scrollView.documentView=table
-  scrollView.hasVerticalScroller=true;scrollView.hasHorizontalScroller=false;scrollView.autohidesScrollers=true
+  scrollView.hasVerticalScroller=false;scrollView.hasHorizontalScroller=false;scrollView.autohidesScrollers=true
   scrollView.contentView.postsBoundsChangedNotifications=true
   sticky.material = .popover;sticky.blendingMode = .withinWindow;sticky.state = .active;sticky.isHidden=true
   for child in [scrollView,sticky] {child.translatesAutoresizingMaskIntoConstraints=false;addSubview(child)}
@@ -32,10 +38,8 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
  deinit {if let observer=observer{NotificationCenter.default.removeObserver(observer)}}
  override func layout(){super.layout();updateScrollChrome()}
  func updateScrollChrome() {
-  // NSTableView can retain a 52pt minimum frame for a 32pt empty-state row.
-  // Only real content overflow warrants a visible scrollbar.
-  let needed=rows.contains{$0.sessionId != nil} && naturalHeight>scrollView.bounds.height+1
-  if scrollView.hasVerticalScroller != needed{scrollView.hasVerticalScroller=needed}
+  // Section arrows replace scrollbars and wheel gestures.
+  if scrollView.hasVerticalScroller{scrollView.hasVerticalScroller=false}
  }
  func update(ids:[String],nodes:[String:MenuNode],expanded:Set<String>,stale:Bool,empty:String) {
   let selected=selectedId
@@ -54,6 +58,18 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
  }
  var selectedId:String? {table.selectedRow>=0 && table.selectedRow<rows.count ? rows[table.selectedRow].sessionId:nil}
  var naturalHeight:CGFloat {CGFloat(rows.reduce(0){$0+($1.sessionId==nil ? 32:64)})}
+ var canMoveUp:Bool {scrollView.contentView.bounds.minY>1}
+ var canMoveDown:Bool {scrollView.contentView.bounds.maxY<naturalHeight-1}
+ func resetViewport() {
+  scrollView.contentView.scroll(to:.zero);scrollView.reflectScrolledClipView(scrollView.contentView);updateSticky()
+ }
+ func move(_ direction:Int) {
+  let clip=scrollView.contentView
+  // Keep one overlapping row (or the sticky root) when moving to the next group.
+  let step=max(64,(floor(clip.bounds.height/64)-1)*64)
+  let y=min(max(0,naturalHeight-clip.bounds.height),max(0,clip.bounds.minY+CGFloat(direction)*step))
+  clip.scroll(to:NSPoint(x:0,y:y));scrollView.reflectScrolledClipView(clip);updateSticky()
+ }
  func select(_ id:String) {
   guard let row=rows.firstIndex(where:{$0.sessionId==id}) else{return}
   table.selectRowIndexes(IndexSet(integer:row),byExtendingSelection:false);reveal(row)
@@ -66,6 +82,7 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
   }
  }
  func updateSticky() {
+  defer{onViewportChange?()}
   var root:String?
   let top=scrollView.contentView.bounds.minY
   let index=table.row(at:NSPoint(x:1,y:top+1))

@@ -263,9 +263,12 @@ final class SessionMenuViewController:NSViewController {
   overhead=base+(aMore ? 24:0)+(hMore ? 24:0);(a,h)=heights(overhead)
   activeMoreHeight.constant=aMore ? 24:0;historyMoreHeight.constant=hMore ? 24:0
   activeHeight.constant=a;historyHeight.constant=h
-  view.setFrameSize(NSSize(width:min(420,availableSize.width),height:min(availableSize.height,a+h+overhead)))
+  let desiredSize=NSSize(width:min(420,availableSize.width),height:min(availableSize.height,a+h+overhead))
+  // Resize the popover before its child view. Resizing the child first lets
+  // AppKit queue a window resize back to the old size on the next run loop.
+  onResize?(desiredSize)
+  view.setFrameSize(desiredSize)
   view.layoutSubtreeIfNeeded();activeList.updateScrollChrome();historyList.updateScrollChrome();activeList.updateSticky();historyList.updateSticky()
-  onResize?(view.frame.size)
  }
  private func refreshSectionControls() {
   guard activeMoreHeight != nil else{return}

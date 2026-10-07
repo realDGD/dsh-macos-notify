@@ -2,6 +2,7 @@
 
 ## 0.5.0
 
+- Resize the popover before its content view so AppKit cannot restore the old outer size and clip expanded rows.
 - Resize fixed menu sections without popover animation or rebuilding unchanged session rows; avoid duplicate size updates.
 - Avoid rebuilding session rows while the menu is closed or a request submenu is tracking. Multiple approvals include the command and numbered request labels.
 

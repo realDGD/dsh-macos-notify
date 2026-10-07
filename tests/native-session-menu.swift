@@ -151,11 +151,12 @@ import CryptoKit
   sections.activeList.scrollView.scrollWheel(with:wheel)
   sections.activeList.table.scrollWheel(with:wheel)
   check(sections.activeList.scrollView.contentView.bounds.origin==fixedOrigin,"wheel still moves the fixed session panel")
-  var resized:NSSize?
-  sections.onResize={resized=$0}
+  var resized:NSSize?,sizeBeforeParentResize:NSSize?
+  sections.onResize={resized=$0;sizeBeforeParentResize=sections.view.frame.size}
   let collapsedActivity=sections.activeList.frame.height,collapsedHistory=sections.historyList.frame.height,collapsedPanel=sections.view.frame.height
   let existingRoot=sections.activeList.table.view(atColumn:0,row:0,makeIfNecessary:true)
   sectionButton("展开活动会话")!.performClick(nil)
+  check(sizeBeforeParentResize?.height==collapsedPanel,"child resized before its popover parent, allowing AppKit to restore the old window size")
   check(sections.activeList.table.view(atColumn:0,row:0,makeIfNecessary:true)===existingRoot,"section expansion rebuilt unchanged visible rows")
   sectionButton("收起活动会话")!.performClick(nil)
   check(sections.activeList.table.view(atColumn:0,row:0,makeIfNecessary:true)===existingRoot,"section collapse rebuilt unchanged visible rows")

@@ -2,6 +2,8 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dsh-native-layout.XXXXXX")"
+swiftc -o "$BUILD_DIR/NativeDesktopLifecycleTests" "$HERE/../tests/native-desktop-lifecycle.swift" "$HERE/DesktopLifecycle.swift"
+"$BUILD_DIR/NativeDesktopLifecycleTests"
 swiftc -o "$BUILD_DIR/NativeMenuControlTests" "$HERE/../tests/native-menu-control.swift" "$HERE/SessionMenuControl.swift"
 "$BUILD_DIR/NativeMenuControlTests"
 swiftc -o "$BUILD_DIR/NativeSessionMenuTests" "$HERE/../tests/native-session-menu.swift" "$HERE/SessionMenuModel.swift" "$HERE/SessionMenuControl.swift" "$HERE/MenuSessionList.swift" "$HERE/SessionMenuView.swift" "$HERE/SessionMenu.swift"

@@ -34,7 +34,7 @@ Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's C
    bash macos/install.sh
    ```
 
-   Installation creates `~/Applications/DSH Notify.app` and a login LaunchAgent. Allow notifications for **DSH Notify** when macOS asks. If Desktop is installed at a different location, set `DSH_DESKTOP_APP` to its application path before building. Builds use the icon from your locally installed official Desktop; official binary/icon assets are not included in this repository or release.
+   Installation creates `~/Applications/DSH Notify.app`. The Desktop plugin starts it quietly when DSH opens; it exits when DSH quits. Minimizing or closing a Desktop window keeps the helper running while Desktop remains open. No login LaunchAgent is created; upgrades retire and back up the old managed startup entry. Allow notifications for **DSH Notify** when macOS asks. If Desktop is installed at a different location, set `DSH_DESKTOP_APP` to its application path before building. Builds use the icon from your locally installed official Desktop; official binary/icon assets are not included in this repository or release.
 
 3. In DSH Desktop, open the left sidebar’s **Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
 

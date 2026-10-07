@@ -22,7 +22,7 @@ Prior implementation was verified on official Desktop 0.2.0-rc.2, macOS 27.0.1 /
 
 ## Operational limits
 
-The current helper coordinates one local active DSH profile/state namespace. Multiple simultaneous Hosts sharing it require separate state directories/helpers and are not certified here. Aggregation can only track descendant runs observed while the plugin is loaded. Foreground leases expire after five seconds and retain sequence history for at most 128 client views; delayed packets from an evicted identity are outside that retained history. Result-unknown submissions never auto-retry. Notification previews and action availability depend on macOS settings and available banner space; default approval click always opens details.
+The current helper coordinates one local active DSH profile/state namespace. Multiple simultaneous Hosts sharing it require separate state directories/helpers and are not certified here. The official Desktop Host starts the helper through LaunchServices; CLI profiles do not start it automatically. The helper follows the Desktop bundle's running processes, so minimizing/closing a window does not stop it, but quitting Desktop does. Installation retires the old managed login LaunchAgent and keeps a backup. Aggregation can only track descendant runs observed while the plugin is loaded. Foreground leases expire after five seconds and retain sequence history for at most 128 client views; delayed packets from an evicted identity are outside that retained history. Result-unknown submissions never auto-retry. Notification previews and action availability depend on macOS settings and available banner space; default approval click always opens details.
 
 ## v0.2.0 distribution checks
 

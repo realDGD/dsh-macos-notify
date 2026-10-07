@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Blend the session table and scrolling viewport into the native popover material instead of showing a separate opaque dark rectangle.
+
 ## 0.4.0
 
 - Add an optional native menu-bar popover for active conversations, expandable nested subagents and five recent root conversations.

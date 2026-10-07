@@ -38,7 +38,7 @@ Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's C
 
 3. In DSH Desktop, open the left sidebar’s **Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
 
-   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.4.0`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
+   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.4.1`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
 
 4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it. The test status becomes confirmed only after Desktop verifies the target session; queueing or macOS acceptance alone does not prove a visible banner or successful navigation.
 

@@ -13,7 +13,7 @@ final class SessionMenuController:NSObject {
   self.interactions=interactions;self.performInteraction=performInteraction
   let screen=NSScreen.main?.visibleFrame.size ?? NSSize(width:420,height:600)
   content=SessionMenuViewController(availableSize:NSSize(width:min(420,max(180,screen.width-24)),height:min(600,max(180,screen.height-48))))
-  super.init();popover.behavior = .transient;popover.animates=false;popover.contentViewController=content
+  super.init();popover.behavior = .transient;popover.animates=true;popover.contentViewController=content
   content.onOpenSession={[weak self] id in self?.navigate(id)}
   content.onInteraction={[weak self] item,action in self?.act(item,action:action)}
   content.onClose={[weak self] in self?.popover.performClose(nil)}

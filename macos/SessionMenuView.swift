@@ -234,15 +234,24 @@ final class SessionMenuViewController:NSViewController {
   var aMore=activeList.naturalHeight>limit,hMore=historyList.naturalHeight>limit
   func heights(_ overhead:CGFloat)->(CGFloat,CGFloat) {
    let budget=max(0,min(600,availableSize.height)-overhead)
-   var a=min(desiredA,budget*0.62),h=min(desiredH,budget*0.38)
-   if activityExpanded && !historyExpanded {h=min(desiredH,budget);a=min(desiredA,budget-h)}
-   else if historyExpanded && !activityExpanded {a=min(desiredA,budget);h=min(desiredH,budget-a)}
-   else if activityExpanded && historyExpanded {a=min(desiredA,budget/2);h=min(desiredH,budget/2)}
+   let compactA=min(activeList.naturalHeight,limit),compactH=min(historyList.naturalHeight,limit)
+   var a=min(compactA,budget*0.62),h=min(compactH,budget*0.38)
    let spare=budget-a-h
-   if spare>0 {a+=min(spare,max(0,desiredA-a));h=min(desiredH,budget-a)}
+   if spare>0 {a+=min(spare,max(0,compactA-a));h=min(compactH,budget-a)}
    // Never cut a session row in half at the viewport edge.
-   if activeList.rows.contains(where:{$0.sessionId != nil}){a=floor(a/64)*64}
-   if historyList.rows.contains(where:{$0.sessionId != nil}){h=floor(h/64)*64}
+   let aUnit:CGFloat=activeList.rows.contains(where:{$0.sessionId != nil}) ? 64:32
+   let hUnit:CGFloat=historyList.rows.contains(where:{$0.sessionId != nil}) ? 64:32
+   func fit(_ height:CGFloat,_ unit:CGFloat)->CGFloat {floor(height/unit)*unit}
+   a=fit(a,aUnit);h=fit(h,hUnit)
+   // Growth starts from the actual compact allocation. A section expansion must
+   // never enlarge the other collapsed section and shrink its own sticky tree.
+   if activityExpanded && !historyExpanded {a=fit(min(desiredA,budget-h),aUnit)}
+   else if historyExpanded && !activityExpanded {h=fit(min(desiredH,budget-a),hUnit)}
+   else if activityExpanded && historyExpanded {
+    let extra=budget-a-h
+    a=fit(min(desiredA,a+extra/2),aUnit);h=fit(min(desiredH,h+extra/2),hUnit)
+    a=fit(min(desiredA,budget-h),aUnit);h=fit(min(desiredH,budget-a),hUnit)
+   }
    return (a,h)
   }
   var overhead=base+(aMore ? 24:0)+(hMore ? 24:0)

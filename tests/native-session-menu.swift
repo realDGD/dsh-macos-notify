@@ -183,6 +183,19 @@ import CryptoKit
   check(sections.view.frame.height<=600 && sections.activeList.frame.height.truncatingRemainder(dividingBy:64)==0 && sections.historyList.frame.height.truncatingRemainder(dividingBy:64)==0,"two expanded sections exceed bounds or cut a row")
   sections.activeList.table.scrollRowToVisible(sections.activeList.rows.count-1)
   check(sections.activeList.table.rows(in:sections.activeList.scrollView.contentView.bounds).contains(sections.activeList.rows.count-1),"bounded expanded tree lost its last child")
+  let shortScreen=SessionMenuViewController(availableSize:NSSize(width:300,height:400))
+  shortScreen.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil);shortScreen.toggle("parent")
+  let shortWindow=NSWindow(contentRect:shortScreen.view.frame,styleMask:[],backing:.buffered,defer:false)
+  shortWindow.contentViewController=shortScreen;shortScreen.view.layoutSubtreeIfNeeded()
+  let shortActivity=shortScreen.activeList.frame.height,shortHistory=shortScreen.historyList.frame.height
+  func shortButton(_ label:String)->NSButton? {descendants(shortScreen.view).compactMap{$0 as? NSButton}.first{!$0.isHidden && $0.accessibilityLabel()==label}}
+  shortButton("展开活动会话")!.performClick(nil)
+  check(shortScreen.activeList.frame.height>=shortActivity && shortScreen.historyList.frame.height==shortHistory,"small-screen expansion shrank activity or enlarged collapsed history")
+  shortButton("向下查看活动会话")!.performClick(nil)
+  let shortClip=shortScreen.activeList.scrollView.contentView.bounds
+  check((0..<shortScreen.activeList.rows.count).contains{index in let rect=shortScreen.activeList.table.rect(ofRow:index);return shortScreen.activeList.rows[index].depth>0 && rect.minY>=shortClip.minY+64 && rect.maxY<=shortClip.maxY},"sticky root covers every child on a short screen")
+  shortButton("展开最近会话")!.performClick(nil)
+  check(shortScreen.activeList.frame.height>=shortActivity && shortScreen.historyList.frame.height>=shortHistory && shortScreen.view.frame.height<=400,"two-section expansion shrinks compact rows or exceeds short screen")
   let few=SessionMenuStore();check(few.ingest(data([node("one"),node("recent",nil,[],"completed")],active:["one"],history:["recent"]),at:1000),"short section fixture decode")
   sections.update(snapshot:few.snapshot,status:"DSH 已连接",stale:false,error:nil);sections.view.layoutSubtreeIfNeeded()
   check(sectionButton("展开活动会话")==nil && sectionButton("展开最近会话")==nil && sectionButton("收起最近会话")==nil,"short sections retain useless expansion controls")

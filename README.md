@@ -23,6 +23,7 @@ Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's C
    ```sh
    git clone https://github.com/realDGD/dsh-macos-notify.git
    cd dsh-macos-notify
+   npm ci --ignore-scripts
    ```
 
 2. Build and install the native helper:
@@ -45,7 +46,7 @@ For CLI installations the equivalent plugin step is `dsh plugin --profile <your-
 
 ## Upgrade
 
-Update the checkout to the matching release, close any native question/approval windows, then run `bash macos/install.sh` again. The installer retains previous helper applications under the private state directory, preserves preferences and verifies that the previous helper exited before replacing it.
+Update the checkout to the matching release, run `npm ci --ignore-scripts`, close any native question/approval windows, then run `bash macos/install.sh` again. The installer retains previous helper applications under the private state directory, preserves preferences and verifies that the previous helper exited before replacing it.
 
 Reinstall the plugin from the new release using DSH's plugin manager if necessary, and restart Desktop to load the new Host/client modules. Check the actual plugin and helper versions in **DSH Notify**. Do not judge success from the source version alone.
 

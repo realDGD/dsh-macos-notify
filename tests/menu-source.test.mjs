@@ -19,7 +19,7 @@ function fixture(live=[],cold=[]) {
    if(errors.has(id))throw new Error('owned read failure')
    const s=[...live,...cold].find(s=>s.id===id);metrics.observations++
    let closed=false
-   return {header:s.header,cursor:s.seq-1,revision:{size:s.seq,mtimeMs:100},inheritedEventCount:s.inheritedEventCount,
+   return {header:s.header,cursor:s.seq-1,revision:services.sessionPersistence? (await services.sessionPersistence.stat(id)).revision :{size:s.seq,mtimeMs:100},inheritedEventCount:s.inheritedEventCount,
     events:s.snapshotEvents(),projections:{asOfSeq:s.seq-1,values:{todos:todos.get(id)??null,title:'冷会话名称'}},
     [Symbol.dispose](){assert.equal(closed,false);closed=true;metrics.disposals++}}
   },
@@ -68,23 +68,40 @@ test('cold_failures_and_revision_cache: release every lease, bounded workers, un
  const f=fixture([],Array.from({length:12},(_,i)=>session('cold-'+i,[event(0,'turn/start',{turn:1}),event(1,'turn/end',{turn:1,reason:{kind:'interrupted'}})])))
  f.errors.add('cold-3');const source=createMenuSource(f.ctx)
  const rows=await source.discover();assert.equal(rows.length,11);assert.equal(rows[0].sessionTitle,'冷会话名称')
- const reads=f.metrics.surfaceReads;await source.discover();assert.equal(f.metrics.surfaceReads,reads)
+ const reads=f.metrics.surfaceReads;await source.discover();assert.equal(f.metrics.surfaceReads,reads);assert.equal(reads,0)
  assert.ok(f.metrics.peak<=4);assert.equal(f.metrics.observations,f.metrics.disposals);source.dispose()
 })
 test('lease_cleanup: cancellation and surface failure release and prevent delayed cache writes',async()=>{
  const s=session('cold',[]),f=fixture([], [s]);const controller=new AbortController()
- f.query.readSurface=async()=>{controller.abort();throw new Error('owned failure')}
+ const observe=f.query.observeSession;f.query.observeSession=async(...args)=>{const lease=await observe(...args);controller.abort();return lease}
  const source=createMenuSource(f.ctx);const rows=await source.discover(controller.signal)
  assert.deepEqual(rows,[]);assert.equal(f.metrics.disposals,1);source.dispose();assert.deepEqual(source.liveFacts(),[])
 })
 test('delayed cold observation cannot overwrite newer attached live turn',async()=>{
  const old=session('session-1',[event(0,'turn/start',{turn:1}),event(1,'turn/end',{turn:1,reason:{kind:'completed'}})])
- const f=fixture([], [old]),original=f.query.readSurface;let release
- f.query.readSurface=async id=>{await new Promise(r=>release=r);return original(id)}
+ const f=fixture([], [old]),original=f.query.observeSession;let release
+ f.query.observeSession=async(...args)=>{await new Promise(r=>release=r);return original(...args)}
  const source=createMenuSource(f.ctx);const promise=source.discover()
  while(!release)await new Promise(r=>setTimeout(r,1))
  const current=session('session-1',[event(0,'turn/start',{turn:1}),event(1,'turn/end',{turn:1,reason:{kind:'completed'}}),event(2,'turn/start',{turn:2}),event(3,'user/message',user('当前问题'))])
  f.live.push(current);f.running.add(current.id);source.invalidate(current.id);source.liveFacts();release()
  const rows=await promise
  assert.equal(rows[0].turn,2);assert.equal(rows[0].userText,'当前问题');assert.equal(rows[0].running,true);assert.equal(f.metrics.disposals,1);source.dispose()
+})
+test('lightweight revision cache avoids observing unchanged cold logs beyond five SDK cache entries',async()=>{
+ const f=fixture([],Array.from({length:12},(_,i)=>session('revision-'+i,[]))),identity=Symbol('persistence')
+ const revisions=new Map();f.services.sessionPersistence={identity,stat:async id=>({revision:revisions.get(id)??'v1'})}
+ const source=createMenuSource(f.ctx);await source.discover();const reads=f.metrics.observations
+ await source.discover();assert.equal(f.metrics.observations,reads)
+ revisions.set('revision-2','v2');await source.discover();assert.equal(f.metrics.observations,reads+1)
+ source.invalidate('revision-3');await source.discover();assert.equal(f.metrics.observations,reads+2)
+ f.services.sessionPersistence={...f.services.sessionPersistence,identity:Symbol('replacement')};await source.discover();assert.equal(f.metrics.observations,reads+14);source.dispose()
+})
+test('dispose releases the retained observation before any blocked secondary surface read',async()=>{
+ const f=fixture([], [session('blocked',[])]),source=createMenuSource(f.ctx);let release,finished=false
+ f.query.readSurface=async()=>{await new Promise(r=>release=r);return {capturedThroughSeq:-1,events:[]}}
+ const work=source.discover().finally(()=>finished=true)
+ while(!release&&!finished)await new Promise(r=>setTimeout(r,1))
+ source.dispose();const released=f.metrics.disposals;release?.();await work
+ assert.equal(released,1);assert.equal(f.metrics.surfaceReads,0)
 })

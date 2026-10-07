@@ -74,6 +74,7 @@ import CryptoKit
   var navigationCompletion:((String?)->Void)?
   let controller=SessionMenuController(directory:directory.path,openSession:{id,completion in opened.append(id);navigationCompletion=completion},openDesktop:{false})
   controller.poll(at:1000);check(controller.statusItem != nil,"enabled status item missing")
+  check(controller.statusItem?.button?.subviews.contains(where:{$0.accessibilityLabel()=="fish.circle"})==true,"menu icon is not the requested white fish.circle")
   check(controller.content.visibleRows.isEmpty,"closed menu rebuilds invisible session rows on every poll")
   let beforeNavigation=opened.count
   controller.navigate("parent");controller.navigate("parent");controller.navigate("/invalid")

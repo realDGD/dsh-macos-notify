@@ -4,6 +4,8 @@ final class SessionMenuController:NSObject {
  private let openSession:(String,@escaping(String?)->Void)->Void,openDesktop:()->Bool
  private let interactions:()->[MenuInteraction],performInteraction:(MenuInteraction,MenuInteractionAction)->String?
  private(set) var statusItem:NSStatusItem?
+ private let iconState=MenuIconState()
+ private var iconView:MenuIconView?
  let popover=NSPopover()
  let content:SessionMenuViewController
  private var actionError:String?,opening=false
@@ -37,13 +39,17 @@ final class SessionMenuController:NSObject {
      let data=try? Data(contentsOf:URL(fileURLWithPath:path)) {store.ingest(data,at:now)}
   else {store.unavailable()}
   if store.snapshot?.enabled==false {
-   popover.performClose(nil);if let item=statusItem{NSStatusBar.system.removeStatusItem(item);statusItem=nil}
+   popover.performClose(nil);if let item=statusItem{NSStatusBar.system.removeStatusItem(item);statusItem=nil;iconView=nil}
   } else if statusItem==nil {
    let item=NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength);statusItem=item
-   item.button?.image=NSImage(systemSymbolName:"bubble.left.and.bubble.right",accessibilityDescription:"DSH Notify")
-   item.button?.image?.isTemplate=true;item.button?.toolTip="DSH Notify";item.button?.target=self;item.button?.action=#selector(toggle)
+   if let button=item.button {
+    let icon=MenuIconView(frame:button.bounds);icon.autoresizingMask=[.width,.height];button.addSubview(icon);iconView=icon
+   }
+   item.button?.toolTip="DSH Notify";item.button?.target=self;item.button?.action=#selector(toggle)
    item.button?.setAccessibilityLabel("DSH Notify 会话面板")
   }
+  iconState.update(store.snapshot?.cohort,generation:store.snapshot?.generation,stale:store.isStale(at:now) || store.snapshot?.availability != "ready")
+  iconView?.update(iconState.appearance)
   if popover.isShown && menuTrackingDepth==0 {render(at:now)}
  }
  private func render(at now:Double=Date().timeIntervalSince1970*1000) {
@@ -52,6 +58,7 @@ final class SessionMenuController:NSObject {
  @objc private func toggle() {
   if popover.isShown{popover.performClose(nil);return}
   guard let button=statusItem?.button else{return}
+  iconState.acknowledge();iconView?.update(iconState.appearance)
   render();popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY)
   content.view.window?.makeFirstResponder(content.table)
  }

@@ -613,7 +613,7 @@ final class NotificationInteractions {
         // Resolve the current request again. Menu cells may outlive a Host answer.
         poll()
         guard !settled.contains(item.requestId), let request = active[item.requestId], request.sessionId == item.sessionId,
-              request.kind == item.kind, item.actions.contains(action) else {
+              request.kind == item.kind, (item.actions.contains(action) || (action == .details && item.kind == "approval")) else {
             return "请求已回答或失效，请等待菜单刷新。"
         }
         if action == .allow || action == .deny {

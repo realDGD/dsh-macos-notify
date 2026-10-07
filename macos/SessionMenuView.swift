@@ -25,6 +25,18 @@ final class MenuProgressView:NSView {
   }
  }
 }
+private final class MenuApprovalButton:NSButton {
+ override func draw(_ dirtyRect:NSRect) {
+  let color=bezelColor ?? MenuStatusPalette.green
+  let shape=NSBezierPath(roundedRect:bounds.insetBy(dx:1,dy:1),xRadius:6,yRadius:6)
+  color.withAlphaComponent(isEnabled ? (cell?.isHighlighted==true ? 0.28:0.14):0.06).setFill();shape.fill()
+  color.withAlphaComponent(isEnabled ? 0.35:0.12).setStroke();shape.lineWidth=0.7;shape.stroke()
+  if window?.firstResponder===self {NSGraphicsContext.saveGraphicsState();NSFocusRingPlacement.only.set();shape.fill();NSGraphicsContext.restoreGraphicsState()}
+  let attrs:[NSAttributedString.Key:Any]=[.font:font ?? NSFont.systemFont(ofSize:10),.foregroundColor:isEnabled ? color:NSColor.disabledControlTextColor]
+  let text=title as NSString,size=text.size(withAttributes:attrs)
+  text.draw(at:NSPoint(x:(bounds.width-size.width)/2,y:(bounds.height-size.height)/2),withAttributes:attrs)
+ }
+}
 final class SessionMenuRowView:NSTableCellView {
  let title=NSTextField(labelWithString:""),preview=NSTextField(labelWithString:""),status=NSTextField(labelWithString:""),progress=MenuProgressView()
  private let disclosure=NSButton(title:"",target:nil,action:nil),dot=NSView()
@@ -71,7 +83,7 @@ final class SessionMenuRowView:NSTableCellView {
  }
  required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
  private func configureActions() {
-  actions.orientation = .horizontal;actions.spacing=4
+  actions.orientation = .vertical;actions.alignment = .width;actions.spacing=2
   picker.font = .systemFont(ofSize:10);picker.addItem(withTitle:interactions.count>1 ? "处理请求（\(interactions.count)）":"处理请求")
   picker.menu?.autoenablesItems=false
   picker.setAccessibilityLabel("处理当前会话的审批或问答")
@@ -86,8 +98,9 @@ final class SessionMenuRowView:NSTableCellView {
     let handler=target(item,action);entry.target=handler;entry.representedObject=handler
     entry.isEnabled = !stale && item.enabled(action);menu.addItem(entry)
     if interactions.count==1 {
-     let button=NSButton(title:action.title,target:entry.target,action:entry.action)
+     let button:NSButton=(action == .allow || action == .deny) ? MenuApprovalButton(title:action.title,target:entry.target,action:entry.action):NSButton(title:action.title,target:entry.target,action:entry.action)
      button.font = .systemFont(ofSize:10);button.bezelStyle = .rounded;button.isEnabled=entry.isEnabled
+     if action == .allow || action == .deny {button.bezelColor=action == .allow ? MenuStatusPalette.green:MenuStatusPalette.red;button.contentTintColor = .white;button.widthAnchor.constraint(equalToConstant:76).isActive=true}
      button.setAccessibilityLabel(action.title+" · "+item.title);actions.addArrangedSubview(button)
     }
    }
@@ -103,9 +116,10 @@ final class SessionMenuRowView:NSTableCellView {
   let compact=interactions.count>1 || available<direct+50
   controls.isHidden=interactions.isEmpty;actions.isHidden=compact;picker.isHidden = !compact
   let width=interactions.isEmpty ? 0:compact ? min(available,min(120,max(44,available-45))):direct
-  controls.frame=NSRect(x:preview.frame.maxX-width,y:status.frame.midY-12,width:width,height:24)
+  let height:CGFloat=compact ? 24:max(24,actions.fittingSize.height)
+  controls.frame=NSRect(x:preview.frame.maxX-width,y:(bounds.height-height)/2,width:width,height:height)
   actions.frame=controls.bounds;picker.frame=controls.bounds
-  status.frame.size.width=max(0,available-(width==0 ? 0:width+4))
+  for label in [title,preview,status]{label.frame.size.width=max(0,available-(width==0 ? 0:width+6))}
  }
  override func mouseDown(with event:NSEvent){if let onOpen=onOpen{onOpen()}else{super.mouseDown(with:event)}}
  @objc private func toggle(){onDisclosure?()}
@@ -164,7 +178,8 @@ final class SessionMenuViewController:NSViewController {
  private let connection=NSTextField(labelWithString:""),errorLabel=NSTextField(labelWithString:""),footer=NSTextField(labelWithString:"")
  private let activeMore=MenuSectionControls("活动会话"),historyMore=MenuSectionControls("最近会话")
  private var activityExpanded=false,historyExpanded=false
- private var resizeAnimation:Timer?
+ private var resizeAnimation:MenuResizeAnimation?
+ private var hasRendered=false,currentInteractions:[MenuInteraction]=[]
  private var snapshot:MenuSnapshot?,nodes:[String:MenuNode]=[:],expanded=Set<String>(),stale=false
  private let availableSize:NSSize
  private var activeHeight:NSLayoutConstraint!,historyHeight:NSLayoutConstraint!
@@ -213,6 +228,8 @@ final class SessionMenuViewController:NSViewController {
    footer.leadingAnchor.constraint(equalTo:heading.leadingAnchor),footer.trailingAnchor.constraint(equalTo:errorLabel.trailingAnchor),footerSpacing,footer.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-8),footerHeight])
  }
  func update(snapshot:MenuSnapshot?,status:String,stale:Bool,error:String?,interactions:[MenuInteraction]=[]) {
+  let changed = !hasRendered || self.snapshot?.nodes != snapshot?.nodes || self.snapshot?.activeIds != snapshot?.activeIds || self.snapshot?.orphanIds != snapshot?.orphanIds || self.snapshot?.historyIds != snapshot?.historyIds || self.snapshot?.availability != snapshot?.availability || self.snapshot?.omittedCount != snapshot?.omittedCount || self.stale != stale || errorLabel.stringValue != (error ?? "") || currentInteractions != interactions
+  hasRendered=true;currentInteractions=interactions
   self.snapshot=snapshot;self.stale=stale;nodes=Dictionary(uniqueKeysWithValues:(snapshot?.nodes ?? []).map{($0.id,$0)})
   let grouped=Dictionary(grouping:interactions,by:{$0.sessionId})
   activeList.interactions=grouped;historyList.interactions=grouped
@@ -222,7 +239,7 @@ final class SessionMenuViewController:NSViewController {
   errorLabel.isHidden = !hasError;errorHeight.constant=hasError ? 30:0;errorSpacing.constant=hasError ? 4:0
   footer.stringValue=hasOverflow ? "另有 \(snapshot!.omittedCount) 条，请在 DSH 查看":""
   footer.isHidden = !hasOverflow;footerHeight.constant=hasOverflow ? 17:0;footerSpacing.constant=hasOverflow ? (hasError ? 2:4):0
-  rebuild()
+  if changed{rebuild()}
  }
  deinit {resizeAnimation?.invalidate()}
  private func rebuild(reloadRows:Bool=true,animate:Bool=false) {
@@ -280,16 +297,17 @@ final class SessionMenuViewController:NSViewController {
   guard animate,view.window?.isVisible==true,!NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
         abs(startA-a)+abs(startH-h)>1 else {applyLayout(a,h,overhead:overhead);return}
   let started=ProcessInfo.processInfo.systemUptime
-  let timer=Timer(timeInterval:1/60,repeats:true){[weak self] timer in
-   guard let self=self else{timer.invalidate();return}
-   let t=min(1,(ProcessInfo.processInfo.systemUptime-started)/0.16)
+  let animation=MenuResizeAnimation(view:view){[weak self] in
+   guard let self=self else{return false}
+   let t=min(1,(ProcessInfo.processInfo.systemUptime-started)/0.26)
    if t>=1 || self.view.window?.isVisible != true {
-    timer.invalidate();self.resizeAnimation=nil;self.applyLayout(a,h,overhead:overhead);return
+    self.resizeAnimation=nil;self.applyLayout(a,h,overhead:overhead);return false
    }
    let eased=CGFloat(t*t*(3-2*t))
-   self.applyLayout((startA+(a-startA)*eased).rounded(),(startH+(h-startH)*eased).rounded(),overhead:overhead)
+   self.applyLayout(startA+(a-startA)*eased,startH+(h-startH)*eased,overhead:overhead)
+   return true
   }
-  resizeAnimation=timer;RunLoop.main.add(timer,forMode:.common)
+  resizeAnimation=animation
  }
  private func applyLayout(_ a:CGFloat,_ h:CGFloat,overhead:CGFloat) {
   activeHeight.constant=a;historyHeight.constant=h

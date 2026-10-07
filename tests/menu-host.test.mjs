@@ -81,3 +81,20 @@ test('old error at baseline is history while a quick start/end after connection 
  f.clock.value+=1000;next.refresh()
  assert.deepEqual(f.read().activeIds,['session-test'])
 })
+
+test('icon cohort retains overlapping results and captures a new turn between snapshot writes',async t=>{
+ const f=await fixture(t);await f.advance(1000)
+ assert.equal(f.read().cohort.running,true)
+ const first=f.read().cohort.id
+ f.running.clear()
+ const end={seq:0,time:12000,type:'turn/end',data:{turn:1,reason:{kind:'completed'}}}
+ f.events.push(end);f.ctx.emit('session/event',f.s,end);await f.advance(1000)
+ assert.equal(f.read().cohort.tone,'green');assert.equal(f.read().cohort.running,false)
+ // Both transitions occur inside the one-second disk-write coalescing window.
+ const start={seq:1,time:12001,type:'turn/start',data:{turn:2}}
+ f.events.push(start);f.running.add(f.s.id);f.ctx.emit('session/event',f.s,start)
+ const cancelled={seq:2,time:12002,type:'turn/end',data:{turn:2,reason:{kind:'aborted',reason:{kind:'user'}}}}
+ f.events.push(cancelled);f.running.clear();f.ctx.emit('session/event',f.s,cancelled);await f.advance(1000)
+ assert.ok(f.read().cohort.id>first)
+ assert.equal(f.read().cohort.running,false);assert.equal(f.read().cohort.tone,'white')
+})

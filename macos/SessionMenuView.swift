@@ -41,7 +41,7 @@ final class SessionMenuRowView:NSTableCellView {
  let title=NSTextField(labelWithString:""),preview=NSTextField(labelWithString:""),status=NSTextField(labelWithString:""),progress=MenuProgressView()
  private let disclosure=NSButton(title:"",target:nil,action:nil),dot=NSView()
  private let controls=NSView(),actions=NSStackView(),picker=NSPopUpButton(frame:.zero,pullsDown:true)
- private var actionTargets:[MenuActionTarget]=[]
+ private var actionTargets:[MenuActionTarget]=[],textTrails:[NSLayoutConstraint]=[]
  private let interactions:[MenuInteraction],stale:Bool
  private let onInteraction:(MenuInteraction,MenuInteractionAction)->Void
  var onOpen:(()->Void)?
@@ -49,7 +49,7 @@ final class SessionMenuRowView:NSTableCellView {
  init(node:MenuNode,depth:Int,expanded:Bool,stale:Bool,interactions:[MenuInteraction]=[],onDisclosure:@escaping()->Void,onInteraction:@escaping(MenuInteraction,MenuInteractionAction)->Void={_,_ in}) {
   self.interactions=interactions.filter{$0.sessionId==node.id && !$0.actions.isEmpty};self.stale=stale;self.onInteraction=onInteraction
   super.init(frame:.zero);self.onDisclosure=onDisclosure
-  for label in [title,preview,status] {label.maximumNumberOfLines=1;label.lineBreakMode = .byTruncatingTail;label.cell?.truncatesLastVisibleLine=true}
+  for label in [title,preview,status] {label.maximumNumberOfLines=1;label.lineBreakMode = .byTruncatingTail;label.cell?.truncatesLastVisibleLine=true;label.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)}
   title.stringValue=(depth>8 ? "第\(depth)层 · ":"")+node.title;title.font = .systemFont(ofSize:12,weight:.semibold)
   preview.stringValue=(node.previewKind=="task" ? "任务：":"")+node.preview;preview.font = .systemFont(ofSize:11);preview.textColor = .secondaryLabelColor
   status.stringValue=(node.pinned ? "📌 ":"")+node.state.label
@@ -72,12 +72,13 @@ final class SessionMenuRowView:NSTableCellView {
   addSubview(controls)
   configureActions()
   let textEnd=node.progress==nil ? trailingAnchor:progress.leadingAnchor
-  NSLayoutConstraint.activate([
+  textTrails=[title,preview,status].map{$0.trailingAnchor.constraint(equalTo:textEnd,constant:-6)}
+  NSLayoutConstraint.activate(textTrails+[
    dot.leadingAnchor.constraint(equalTo:leadingAnchor,constant:6+offset),dot.widthAnchor.constraint(equalToConstant:8),dot.heightAnchor.constraint(equalToConstant:8),dot.centerYAnchor.constraint(equalTo:centerYAnchor),
    disclosure.leadingAnchor.constraint(equalTo:leadingAnchor,constant:20+offset),disclosure.widthAnchor.constraint(equalToConstant:disclosureWidth),disclosure.topAnchor.constraint(equalTo:topAnchor,constant:5),disclosure.heightAnchor.constraint(equalToConstant:32),
-   title.leadingAnchor.constraint(equalTo:disclosure.trailingAnchor,constant:disclosureWidth==0 ? 0:6),title.trailingAnchor.constraint(equalTo:textEnd,constant:-6),title.topAnchor.constraint(equalTo:topAnchor,constant:5),title.heightAnchor.constraint(equalToConstant:17),
-   preview.leadingAnchor.constraint(equalTo:title.leadingAnchor),preview.trailingAnchor.constraint(equalTo:textEnd,constant:-6),preview.topAnchor.constraint(equalTo:title.bottomAnchor,constant:2),preview.heightAnchor.constraint(equalToConstant:16),
-   status.leadingAnchor.constraint(equalTo:title.leadingAnchor),status.trailingAnchor.constraint(equalTo:textEnd,constant:-6),status.topAnchor.constraint(equalTo:preview.bottomAnchor,constant:2),status.heightAnchor.constraint(equalToConstant:14),
+   title.leadingAnchor.constraint(equalTo:disclosure.trailingAnchor,constant:disclosureWidth==0 ? 0:6),title.topAnchor.constraint(equalTo:topAnchor,constant:5),title.heightAnchor.constraint(equalToConstant:17),
+   preview.leadingAnchor.constraint(equalTo:title.leadingAnchor),preview.topAnchor.constraint(equalTo:title.bottomAnchor,constant:2),preview.heightAnchor.constraint(equalToConstant:16),
+   status.leadingAnchor.constraint(equalTo:title.leadingAnchor),status.topAnchor.constraint(equalTo:preview.bottomAnchor,constant:2),status.heightAnchor.constraint(equalToConstant:14),
    progress.trailingAnchor.constraint(equalTo:trailingAnchor,constant:-6),progress.widthAnchor.constraint(equalToConstant:40),progress.centerYAnchor.constraint(equalTo:centerYAnchor),progress.heightAnchor.constraint(equalToConstant:40)])
   alphaValue=stale ? 0.5:1;setAccessibilityElement(true);setAccessibilityRole(.row);setAccessibilityLabel(node.accessibleLabel)
  }
@@ -100,7 +101,7 @@ final class SessionMenuRowView:NSTableCellView {
     if interactions.count==1 {
      let button:NSButton=(action == .allow || action == .deny) ? MenuApprovalButton(title:action.title,target:entry.target,action:entry.action):NSButton(title:action.title,target:entry.target,action:entry.action)
      button.font = .systemFont(ofSize:10);button.bezelStyle = .rounded;button.isEnabled=entry.isEnabled
-     if action == .allow || action == .deny {button.bezelColor=action == .allow ? MenuStatusPalette.green:MenuStatusPalette.red;button.contentTintColor = .white;button.widthAnchor.constraint(equalToConstant:76).isActive=true}
+     if action == .allow || action == .deny {button.bezelColor=action == .allow ? MenuStatusPalette.green:MenuStatusPalette.red;button.contentTintColor = .white;button.widthAnchor.constraint(equalToConstant:76).isActive=true;button.heightAnchor.constraint(equalToConstant:22).isActive=true}
      button.setAccessibilityLabel(action.title+" · "+item.title);actions.addArrangedSubview(button)
     }
    }
@@ -112,13 +113,17 @@ final class SessionMenuRowView:NSTableCellView {
  }
  override func layout() {
   super.layout()
-  let available=max(0,preview.frame.width),direct=actions.fittingSize.width
+  let end=progress.isHidden ? bounds.width:progress.frame.minX
+  let available=max(0,end-6-title.frame.minX),direct=actions.fittingSize.width
   let compact=interactions.count>1 || available<direct+50
   controls.isHidden=interactions.isEmpty;actions.isHidden=compact;picker.isHidden = !compact
   let width=interactions.isEmpty ? 0:compact ? min(available,min(120,max(44,available-45))):direct
   let height:CGFloat=compact ? 24:max(24,actions.fittingSize.height)
-  controls.frame=NSRect(x:preview.frame.maxX-width,y:(bounds.height-height)/2,width:width,height:height)
+  controls.frame=NSRect(x:end-6-width,y:(bounds.height-height)/2,width:width,height:height)
   actions.frame=controls.bounds;picker.frame=controls.bounds
+  for trail in textTrails {let constant:CGFloat = -6-(width==0 ? 0:width+6);if trail.constant != constant{trail.constant=constant}}
+  // Keep the current layout pass consistent with the constraints that AppKit
+  // will resolve on the next pass, including on older control metrics.
   for label in [title,preview,status]{label.frame.size.width=max(0,available-(width==0 ? 0:width+6))}
  }
  override func mouseDown(with event:NSEvent){if let onOpen=onOpen{onOpen()}else{super.mouseDown(with:event)}}

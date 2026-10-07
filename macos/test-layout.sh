@@ -18,4 +18,11 @@ swiftc -o "$BUILD_DIR/NativeQuestionLayoutTests" "$HERE/../tests/native-question
 "$BUILD_DIR/NativeQuestionLayoutTests"
 echo "Native layout tests passed; test executable retained at $BUILD_DIR"
 swiftc -o "$BUILD_DIR/NativeMarkdownContextTests" "$HERE/../tests/native-markdown-context.swift" "$HERE/Interactions.swift" "$HERE/MarkdownContext.swift" "$HERE/SessionMenuModel.swift" "$HERE/MenuIcon.swift" "$HERE/MenuResizeAnimation.swift"
-"$BUILD_DIR/NativeMarkdownContextTests"
+CONTEXT_APP="$BUILD_DIR/Markdown Context Tests.app"
+mkdir -p "$CONTEXT_APP/Contents/MacOS" "$CONTEXT_APP/Contents/Resources"
+cp "$BUILD_DIR/NativeMarkdownContextTests" "$CONTEXT_APP/Contents/MacOS/NativeMarkdownContextTests"
+cp -R "$HERE/assets" "$CONTEXT_APP/Contents/Resources/renderer"
+cat > "$CONTEXT_APP/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleExecutable</key><string>NativeMarkdownContextTests</string><key>CFBundleIdentifier</key><string>local.dshnotify.markdown-tests</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>
+PLIST
+"$CONTEXT_APP/Contents/MacOS/NativeMarkdownContextTests"

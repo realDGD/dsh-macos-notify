@@ -47,12 +47,13 @@ func logLine(_ message:String) {}
   }
   let row=SessionMenuRowView(node:node,depth:0,expanded:false,stale:false,interactions:[first],onDisclosure:{}){item,action in calls.append(item.requestId+":"+action.rawValue)}
   layout(row,width:400)
+  for _ in 0..<4 {row.needsLayout=true;row.layoutSubtreeIfNeeded()}
   let allow=descendants(row).compactMap{$0 as? NSButton}.first{$0.title=="允许本次"}!
   let deny=descendants(row).compactMap{$0 as? NSButton}.first{$0.title=="拒绝"}!
   let allowRect=allow.convert(allow.bounds,to:row),denyRect=deny.convert(deny.bounds,to:row)
   check(abs(allowRect.midX-denyRect.midX)<1 && abs(allowRect.midY-denyRect.midY)>18,"approval buttons are not vertically stacked")
   check(!descendants(row).compactMap{$0 as? NSButton}.contains{$0.title=="查看详情"},"menu retains redundant details button")
-  check(!allowRect.intersects(row.title.frame) && !denyRect.intersects(row.preview.frame),"stacked approvals cover session text")
+  check(!allowRect.intersects(row.title.frame) && !denyRect.intersects(row.preview.frame),"stacked approvals cover session text: \(allowRect) \(denyRect) vs \(row.title.frame) \(row.preview.frame)")
   check(allow.bezelColor == MenuStatusPalette.green && deny.bezelColor == MenuStatusPalette.red,"approval button colors missing")
   allow.performClick(nil);check(calls==["approval-1:allow"],"row Allow targeted another request or navigated")
   let disabled=SessionMenuRowView(node:node,depth:0,expanded:false,stale:true,interactions:[first],onDisclosure:{}){_,_ in calls.append("stale")}

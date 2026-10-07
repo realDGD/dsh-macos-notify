@@ -2,6 +2,7 @@
 
 ## 0.5.0
 
+- Follow DSH Desktop startup and exit instead of login startup. Retire and back up the old managed LaunchAgent; the Desktop plugin recovers a missing helper without creating duplicates or affecting CLI profiles.
 - Resize the popover before its content view so AppKit cannot restore the old outer size and clip expanded rows.
 - Animate section height with a short synchronized transition instead of the whole popover effect. Respect Reduce Motion, retain unchanged rows and sticky roots, and replace interrupted transitions from their current size.
 - Share four compact rows between activity and recent history: split evenly when both overflow and lend unused slots to the longer section. Show each section's disclosure only when more rows remain.

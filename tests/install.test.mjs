@@ -14,11 +14,23 @@ function fixture(t) {
   writeFileSync(join(app, 'Contents/Info.plist'), '<plist><dict><key>CFBundleIdentifier</key><string>com.dgd.dsh-jump-notifier</string></dict></plist>')
   return { home, app, run: (...args) => execFileSync(process.execPath, [script.pathname, '--home', home, '--app', app, '--no-start', ...args], { encoding: 'utf8', stdio: 'pipe' }) }
 }
-test('fresh install configures private startup without touching another profile', t => {
+test('fresh install follows Desktop without creating a login agent', t => {
   const f = fixture(t); f.run()
   assert.equal(readFileSync(join(f.home, 'Applications/DSH Notify.app/Contents/MacOS/DSHNotify'), 'utf8'), 'v1')
-  assert.equal(existsSync(join(f.home, 'Library/LaunchAgents/com.dgd.dsh-jump-notifier.plist')), true)
+  assert.equal(existsSync(join(f.home, 'Library/LaunchAgents/com.dgd.dsh-jump-notifier.plist')), false)
   assert.equal(existsSync(join(f.home, '.dsh/dsh-jump/install.json')), true)
+  assert.equal(JSON.parse(readFileSync(join(f.home, '.dsh/dsh-jump/install.json'))).startup, 'desktop')
+})
+test('upgrade retires only the managed login agent and retains its backup', t => {
+  const f = fixture(t); f.run()
+  const agent = join(f.home, 'Library/LaunchAgents/com.dgd.dsh-jump-notifier.plist')
+  mkdirSync(join(f.home, 'Library/LaunchAgents'), { recursive: true })
+  const original = '<!-- dsh-macos-notify managed -->old startup'
+  writeFileSync(agent, original)
+  f.run()
+  assert.equal(existsSync(agent), false)
+  const backups = join(f.home, '.dsh/dsh-jump/backups')
+  assert.ok(readdirSync(backups).some(name => name.endsWith('.plist') && readFileSync(join(backups,name),'utf8') === original))
 })
 test('upgrade backs up previous app, preserves settings and supports safe removal', t => {
   const f = fixture(t); f.run()

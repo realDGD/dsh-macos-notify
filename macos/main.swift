@@ -14,7 +14,11 @@ let chromeBundleID = "com.google.Chrome"
 let desktopBundleID = "com.deepseek.dsh"
 
 let dshHome = ProcessInfo.processInfo.environment["DSH_HOME"] ?? (NSHomeDirectory() as NSString).appendingPathComponent(".dsh")
-let stateDir = (dshHome as NSString).appendingPathComponent("dsh-jump")
+let stateDir: String = {
+    if let i = CommandLine.arguments.firstIndex(of: "--state-dir"), CommandLine.arguments.count > i + 1,
+       CommandLine.arguments[i + 1].hasPrefix("/") { return CommandLine.arguments[i + 1] }
+    return (dshHome as NSString).appendingPathComponent("dsh-jump")
+}()
 let pendingPath = (stateDir as NSString).appendingPathComponent("pending.txt")
 let logPath = (stateDir as NSString).appendingPathComponent("applet.log")
 
@@ -57,8 +61,11 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
     private var pumpTimer: Timer?
     private let jumpWaiter = DesktopJumpWaiter(directory: stateDir)
     private var sessionMenu: SessionMenuController?
+    private var desktopLifecycle: DesktopLifecycle?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        desktopLifecycle = DesktopLifecycle(onStopped: { NSApp.terminate(nil) })
+        guard desktopLifecycle?.start() == true else { return }
         // Accessory apps have no default Edit menu. Install standard responder
         // commands so multiline fields support Cmd+C/V/A and undo normally.
         let menu = NSMenu()
@@ -111,6 +118,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
         }
 
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard self?.desktopLifecycle?.check() == true else { return }
             self?.pump()
             NotificationInteractions.shared.poll()
             self?.jumpWaiter.poll()

@@ -13,7 +13,6 @@ const label = 'com.dgd.dsh-jump-notifier'
 const agent = join(home, 'Library/LaunchAgents', label + '.plist'), manifest = join(dir, 'install.json')
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const owned = app => { try { return readFileSync(join(app, 'Contents/Info.plist'), 'utf8').includes('<string>' + label + '</string>') } catch { return false } }
-const xml = s => s.replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]))
 const agentOwned = () => { try { return readFileSync(agent, 'utf8').includes('<!-- dsh-macos-notify managed -->') } catch { return false } }
 const stop = () => {
   try {
@@ -56,7 +55,6 @@ if (args.includes('--uninstall')) {
   if (process.platform !== 'darwin' && !dry) throw new Error('macOS required')
   mkdirSync(dir, { recursive: true, mode: 0o700 })
   mkdirSync(dirname(target), { recursive: true })
-  mkdirSync(dirname(agent), { recursive: true })
   const staging = join(dirname(target), `.DSH Notify.stage-${randomUUID()}.app`)
   const supplied = option('--app')
   try {
@@ -67,20 +65,21 @@ if (args.includes('--uninstall')) {
     if (!dry) execFileSync('codesign', ['--verify', '--deep', '--strict', staging], { stdio: 'inherit' })
     stop()
     const backupDir = join(dir, 'backups'); mkdirSync(backupDir, { recursive: true, mode: 0o700 })
+    if (agentOwned()) {
+      renameSync(agent, join(backupDir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.plist`))
+      console.log('Previous login startup retired and retained as backup.')
+    }
     for (const previous of [target, legacy]) if (existsSync(previous) && owned(previous)) {
       const backup = join(backupDir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.app`)
       renameSync(previous, backup)
       console.log('Previous helper retained as backup.')
     }
     renameSync(staging, target)
-    const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<!-- dsh-macos-notify managed -->\n<plist version="1.0"><dict><key>Label</key><string>${label}</string><key>ProgramArguments</key><array><string>${xml(join(target, 'Contents/MacOS/DSHNotify'))}</string></array><key>EnvironmentVariables</key><dict><key>DSH_HOME</key><string>${xml(dirname(dir))}</string></dict><key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>ThrottleInterval</key><integer>10</integer></dict></plist>\n`
-    writeFileSync(agent, plist, { mode: 0o600 })
-    writeFileSync(manifest, JSON.stringify({ version: 1, app: target, label }) + '\n', { mode: 0o600 })
+    writeFileSync(manifest, JSON.stringify({ version: 2, app: target, label, startup: 'desktop' }) + '\n', { mode: 0o600 })
     if (!dry) {
       execFileSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister', ['-f', target])
-      execFileSync('launchctl', ['bootstrap', `gui/${process.getuid()}`, agent])
-      execFileSync('launchctl', ['kickstart', `gui/${process.getuid()}/${label}`])
+      execFileSync('/usr/bin/open', ['-g', '-j', '-a', target, '--args', '--state-dir', dir])
     }
-    console.log('Installed DSH Notify.app and login startup. Add dsh-macos-notify in DSH Desktop Plugins, then restart Desktop once.')
+    console.log('Installed DSH Notify.app. It follows DSH Desktop instead of login startup; restart Desktop once to load the plugin lifecycle.')
   } finally { if (existsSync(staging)) rmSync(staging, { recursive: true }) }
 }

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, renameSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as hostPlugin from '../lib/index.js'
@@ -39,12 +39,15 @@ test('真实 Cordis 下认证 API 路由在调用插件生命周期内注册和�
   assert.equal(routes.size, 0)
 })
 
-function host(t) {
+function host(t, events = false) {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-notify-host-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const cleanups = [], hooks = new Map()
+  t.after(() => { for (const off of cleanups) off?.(); rmSync(dir, { recursive: true, force: true }) })
   const routes = new Map()
   const connection = { fetch: { register(route) { routes.set(route.path, route) } } }
-  apply({ get: () => connection }, { stateDir: dir })
+  const ctx = { get: name => name === 'connection' ? connection : null }
+  if (events) Object.assign(ctx, { on: (name, fn) => hooks.set(name, fn), effect: fn => cleanups.push(fn()) })
+  apply(ctx, { stateDir: dir })
   assert.equal(routes.size, 9, '宿主应注册已认证的跳转 API 路由')
   const send = async (endpoint, payload, envelope = {}) => {
     const method = 'dsh-macos-notify/' + endpoint
@@ -62,10 +65,10 @@ function host(t) {
     assert.equal(body.result.ok, true)
     return body.result.value
   }
-  const put = (requestId, sessionId, createdAt = Date.now()) => {
-    writeFileSync(join(dir, 'open-session.json'), JSON.stringify({ requestId, sessionId, createdAt }))
+  const put = (requestId, sessionId, createdAt = Date.now(), testId) => {
+    writeFileSync(join(dir, 'open-session.json'), JSON.stringify({ requestId, sessionId, createdAt, ...(testId ? { testId } : {}) }))
   }
-  return { dir, handler, put, send }
+  return { dir, handler, put, send, hooks }
 }
 
 test('宿主保留请求直到客户端确认对应会话', async (t) => {
@@ -114,4 +117,63 @@ test('settings RPC persists preferences, rejects unknown secrets and reports onl
   assert.equal(status.helper.running, false)
   assert.equal(JSON.stringify(status).includes(dir), false)
   assert.equal((await handler('test', { sessionId: 'session-safe' })).queued, true)
+})
+
+
+test('background windows and delayed presence packets cannot override foreground quiet mode', async t => {
+  const f = host(t, true)
+  await f.handler('save', { quietCurrentSession: true })
+  const presence = (clientId, seq, visible) => f.handler('foreground', { clientId, seq, sessionId: 'session-active', visible })
+  await presence('active-window', 1, true)
+  await presence('background-window', 1, false)
+  const end = turn => f.hooks.get('session/event')({ id: 'session-active', header: {} }, { type: 'turn/end', data: { turn, reason: { kind: 'completed' } } })
+  end(1)
+  assert.equal((await f.handler('status', {})).notifications.suppressed, 1)
+  await presence('active-window', 2, false)
+  await presence('active-window', 1, true)
+  end(2)
+  assert.equal((await f.handler('status', {})).notifications.posted, 1)
+})
+
+test('safe test queue failure never returns queued success', async t => {
+  const f = host(t)
+  renameSync(join(f.dir, 'notifications'), join(f.dir, 'old-queue'))
+  writeFileSync(join(f.dir, 'notifications'), 'blocked queue')
+  assert.equal((await f.send('test', { sessionId: 'session-safe' })).status, 400)
+})
+
+test('safe test status binds delivery and confirmation to this test and session only', async t => {
+  const f = host(t)
+  assert.equal((await f.handler('status', {})).test?.state, 'none')
+  await f.handler('test', { sessionId: 'session-safe' })
+  assert.equal((await f.handler('status', {})).test.state, 'waiting-for-helper')
+  const test = JSON.parse(readFileSync(join(f.dir, 'last-test.json')))
+  const receipts = join(f.dir, 'test-delivery'); mkdirSync(receipts)
+  const writeReceipt = (id, state) => writeFileSync(join(receipts, id + '.json'), JSON.stringify({ id, state, updatedAt: Date.now(), secret: 'private diagnostic input' }))
+  writeReceipt(crypto.randomUUID(), 'posted')
+  assert.equal((await f.handler('status', {})).test.state, 'waiting-for-helper')
+  writeReceipt(test.id, 'posted')
+  assert.equal((await f.handler('status', {})).test.state, 'waiting-for-click')
+  f.put('other-session', 'session-other', Date.now(), test.id)
+  await f.handler('ack', { requestId: 'other-session', sessionId: 'session-other' })
+  assert.equal((await f.handler('status', {})).test.state, 'waiting-for-click')
+  f.put('own-test', 'session-safe', Date.now(), test.id)
+  assert.equal((await f.handler('status', {})).test.state, 'opening')
+  await f.handler('ack', { requestId: 'own-test', sessionId: 'session-safe' })
+  assert.equal((await f.handler('status', {})).test.state, 'confirmed')
+  f.put('later-unrelated', 'session-other')
+  await f.handler('ack', { requestId: 'later-unrelated', sessionId: 'session-other' })
+  const status = await f.handler('status', {})
+  assert.equal(status.test.state, 'confirmed')
+  for (const secret of [f.dir, test.id, 'session-safe', 'private diagnostic input']) assert(!JSON.stringify(status).includes(secret))
+  await f.handler('test', { sessionId: 'session-safe' })
+  assert.equal((await f.handler('status', {})).test.state, 'waiting-for-helper')
+})
+
+test('helper status never exposes arbitrary file content as a version', async t => {
+  const f = host(t)
+  writeFileSync(join(f.dir, 'helper-status.json'), JSON.stringify({ updatedAt: Date.now(), version: 'private diagnostic secret', permission: 'authorized' }))
+  const status = await f.handler('status', {})
+  assert.equal(status.helper.version, null)
+  assert.equal(JSON.stringify(status).includes('private diagnostic secret'), false)
 })

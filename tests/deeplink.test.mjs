@@ -67,7 +67,8 @@ test('Desktop 选中失败时不 ack，也不抢在应用初始导航之前跳�
 })
 
 /** 在 Node 沙箱里加载插件，返回其 exports。 */
-function loadPlugin({ search = '', protocol = 'http:', intervals = null } = {}) {
+function loadPlugin({ search = '', protocol = 'http:', intervals = null, react = null, focused = () => true } = {}) {
+  const windowEvents = new Map(), documentEvents = new Map()
   const replaced = []
   let definition = null
   const windowObj = {
@@ -87,13 +88,13 @@ function loadPlugin({ search = '', protocol = 'http:', intervals = null } = {}) 
     clearTimeout,
     setInterval: intervals ? (fn) => { intervals.push(fn); return fn } : setInterval,
     clearInterval,
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: (name, fn) => windowEvents.set(name, fn),
+    removeEventListener: name => windowEvents.delete(name),
     focus: () => {},
   }
   const sandbox = {
     window: windowObj,
-    document: { hidden: false, hasFocus: () => true },
+    document: { hidden: false, hasFocus: focused, addEventListener: (name, fn) => documentEvents.set(name, fn), removeEventListener: name => documentEvents.delete(name) },
     Notification: undefined,
     URL,
     URLSearchParams,
@@ -110,8 +111,8 @@ function loadPlugin({ search = '', protocol = 'http:', intervals = null } = {}) 
   vm.createContext(sandbox)
   vm.runInContext(SOURCE, sandbox)
   assert.ok(definition !== null, '插件应当通过 window.__ModuleLoader__.load 注册自己')
-  const exported = definition.factory(() => { throw new Error('插件不应 require 任何东西') })
-  return { exported, replaced }
+  const exported = definition.factory(name => { if (name === 'react' && react) return react; throw new Error('Unavailable test module') })
+  return { exported, replaced, windowEvents, documentEvents }
 }
 
 /**
@@ -287,4 +288,26 @@ test('目标会话不在列表里：一直等，不误切换别的会话', async
 
   assert.deepEqual(calls, [])
   assert.deepEqual(replaced, [])
+})
+
+test('settings client reports ordered per-window focus and clears its own lease on disposal', async () => {
+  let focus = true
+  const packets = [], cleanups = [], intervals = []
+  const rpc = { call: async (_channel, endpoint, value) => {
+    if (endpoint.endsWith('/foreground')) packets.push(value)
+    return { ok: true, value: null }
+  } }
+  const { ctx, workspace } = makeCtx({ ids: ['session-active'], rpc })
+  appFinishesBoot(workspace, 'session-active')
+  const get = ctx.get; ctx.get = name => name === 'slots' ? { inject() {}, register() {} } : get(name)
+  ctx.effect = fn => { const cleanup = fn(); cleanups.push(cleanup); return cleanup }
+  const client = loadPlugin({ protocol: 'dsh-app:', intervals, react: { useState() {} }, focused: () => focus })
+  client.exported.apply(ctx)
+  focus = false; client.windowEvents.get('blur')()
+  focus = true; client.windowEvents.get('focus')()
+  for (const cleanup of cleanups) cleanup?.()
+  assert.deepEqual(packets.map(p => [p.seq, p.visible, p.sessionId]), [[1, true, 'session-active'], [2, false, 'session-active'], [3, true, 'session-active'], [4, false, null]])
+  assert.equal(new Set(packets.map(p => p.clientId)).size, 1)
+  assert.equal(client.windowEvents.has('blur'), false)
+  assert.equal(client.documentEvents.has('visibilitychange'), false)
 })

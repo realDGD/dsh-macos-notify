@@ -78,3 +78,42 @@ test('notification preferences suppress reminders without consuming Host answers
   assert.equal(f.records().length, 1)
   assert.equal(f.service.status().suppressed, 1)
 })
+
+
+test('late duplicate child terminal cannot end a newer child generation or flush root early', t => {
+  const f = fixture(t)
+  f.service.observe(root, event('turn/start'))
+  f.service.observe(child, event('turn/start', 1))
+  f.service.observe(child, event('turn/end', 1))
+  f.service.observe(child, event('turn/start', 2))
+  f.service.observe(root, event('turn/end'))
+  assert.equal(f.records().length, 0)
+  f.service.observe(child, event('turn/end', 1))
+  assert.equal(f.records().length, 0)
+  f.service.observe(child, event('turn/end', 2))
+  assert.deepEqual(f.records().map(x => x.sessionId), [root.id])
+})
+
+test('delayed older starts and errors cannot cancel a newer held root completion', t => {
+  const f = fixture(t)
+  f.service.observe(root, event('turn/start', 2))
+  f.service.observe(child, event('turn/start', 2))
+  f.service.observe(root, event('turn/end', 2))
+  f.service.observe(root, event('turn/start', 1))
+  f.service.error({ agent: { session: root }, turn: 1 })
+  f.service.observe(child, event('turn/start', 1))
+  f.service.observe(child, event('turn/end', 1))
+  assert.equal(f.records().length, 0)
+  f.service.observe(child, event('turn/end', 2))
+  assert.deepEqual(f.records().map(n => n.sessionId), [root.id])
+})
+
+test('duplicate start after a finished child turn cannot resurrect it and block aggregation', t => {
+  const f = fixture(t)
+  f.service.observe(root, event('turn/start'))
+  f.service.observe(child, event('turn/start'))
+  f.service.observe(child, event('turn/end'))
+  f.service.observe(child, event('turn/start'))
+  f.service.observe(root, event('turn/end'))
+  assert.deepEqual(f.records().map(n => n.sessionId), [root.id])
+})

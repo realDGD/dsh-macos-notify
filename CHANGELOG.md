@@ -2,6 +2,7 @@
 
 ## 0.5.0
 
+- Resize fixed menu sections without popover animation or rebuilding unchanged session rows; avoid duplicate size updates.
 - Avoid rebuilding session rows while the menu is closed or a request submenu is tracking. Multiple approvals include the command and numbered request labels.
 
 - Add per-session menu-bar Allow once, Deny, approval details and complete question-form actions. Multiple requests use explicitly bound entries; stale, submitting and already accepted requests cannot be submitted again.

@@ -223,10 +223,12 @@ final class SessionMenuViewController:NSViewController {
   footer.isHidden = !hasOverflow;footerHeight.constant=hasOverflow ? 17:0;footerSpacing.constant=hasOverflow ? (hasError ? 2:4):0
   rebuild()
  }
- private func rebuild() {
-  let ids=(snapshot?.activeIds ?? [])+(snapshot?.orphanIds ?? [])
-  activeList.update(ids:ids,nodes:nodes,expanded:expanded,stale:stale,empty:snapshot?.availability=="loading" ? "正在加载会话…":"暂无本次连接的活动会话")
-  historyList.update(ids:Array((snapshot?.historyIds ?? []).prefix(5)),nodes:nodes,expanded:expanded,stale:stale,empty:"暂无最近会话")
+ private func rebuild(reloadRows:Bool=true) {
+  if reloadRows {
+   let ids=(snapshot?.activeIds ?? [])+(snapshot?.orphanIds ?? [])
+   activeList.update(ids:ids,nodes:nodes,expanded:expanded,stale:stale,empty:snapshot?.availability=="loading" ? "正在加载会话…":"暂无本次连接的活动会话")
+   historyList.update(ids:Array((snapshot?.historyIds ?? []).prefix(5)),nodes:nodes,expanded:expanded,stale:stale,empty:"暂无最近会话")
+  }
   // Reserve space for both lists; neither must be reached by scrolling the other.
   let base=117+errorSpacing.constant+errorHeight.constant+footerSpacing.constant+footerHeight.constant,limit:CGFloat=128
   let desiredA=activityExpanded ? activeList.naturalHeight:min(activeList.naturalHeight,limit)
@@ -270,8 +272,8 @@ final class SessionMenuViewController:NSViewController {
   activeMore.update(needed:activeMoreHeight.constant>0,expanded:activityExpanded,list:activeList)
   historyMore.update(needed:historyMoreHeight.constant>0,expanded:historyExpanded,list:historyList)
  }
- private func toggleActivityExpansion(){activityExpanded.toggle();rebuild();if !activityExpanded{activeList.resetViewport()}}
- private func toggleHistoryExpansion(){historyExpanded.toggle();rebuild();if !historyExpanded{historyList.resetViewport()}}
+ private func toggleActivityExpansion(){activityExpanded.toggle();rebuild(reloadRows:false);if !activityExpanded{activeList.resetViewport()}}
+ private func toggleHistoryExpansion(){historyExpanded.toggle();rebuild(reloadRows:false);if !historyExpanded{historyList.resetViewport()}}
  func toggle(_ id:String){guard nodes[id] != nil else{return};if expanded.contains(id){expanded.remove(id)}else{expanded.insert(id)};rebuild()}
  @discardableResult func handleKey(_ key:UInt16,list:MenuSessionList?=nil)->Bool {
   let list=list ?? activeList,rows=list.rows,table=list.table

@@ -70,8 +70,15 @@ import Cocoa
   try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
   defer{try? FileManager.default.removeItem(at:directory)}
   try data([node("parent")]).write(to:directory.appendingPathComponent("session-menu.json"))
-  let controller=SessionMenuController(directory:directory.path,openSession:{id,completion in opened.append(id);completion(nil)},openDesktop:{true})
+  var navigationCompletion:((String?)->Void)?
+  let controller=SessionMenuController(directory:directory.path,openSession:{id,completion in opened.append(id);navigationCompletion=completion},openDesktop:{false})
   controller.poll(at:1000);check(controller.statusItem != nil,"enabled status item missing")
+  let beforeNavigation=opened.count
+  controller.navigate("parent");controller.navigate("parent");controller.navigate("/invalid")
+  check(opened.count==beforeNavigation+1 && opened.last=="parent","duplicate or invalid menu jump")
+  navigationCompletion?("无法连接 DSH Desktop")
+  func descendants(_ view:NSView)->[NSView]{[view]+view.subviews.flatMap(descendants)}
+  check(descendants(controller.content.view).compactMap{$0 as? NSTextField}.contains{$0.stringValue=="无法连接 DSH Desktop"},"jump failure not retained in menu")
   try data([],active:[],revision:2,updated:2000,enabled:false).write(to:directory.appendingPathComponent("session-menu.json"))
   controller.poll(at:2000);check(controller.statusItem==nil && !controller.popover.isShown,"disabled menu retained")
   try data([node("parent")],revision:3,updated:3000).write(to:directory.appendingPathComponent("session-menu.json"))

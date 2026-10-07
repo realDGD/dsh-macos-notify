@@ -56,6 +56,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
     private let staleSeconds: TimeInterval = 600
     private var pumpTimer: Timer?
     private let jumpWaiter = DesktopJumpWaiter(directory: stateDir)
+    private var sessionMenu: SessionMenuController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Accessory apps have no default Edit menu. Install standard responder
@@ -88,6 +89,17 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
                 return
             }
         }
+        sessionMenu = SessionMenuController(directory: stateDir, openSession: { [weak self] id, completion in
+            var components = URLComponents(string: "http://127.0.0.1:3080/")!
+            components.queryItems = [URLQueryItem(name: "session", value: id)]
+            guard let self = self, let url = components.url, self.openInDesktop(url, completion: completion) else {
+                completion("无法打开 DSH Desktop，请检查应用是否已安装。")
+                return
+            }
+        }, openDesktop: {
+            guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: desktopBundleID) != nil else { return false }
+            return NSWorkspace.shared.open(URL(string: "dsh://open")!)
+        })
         center.requestAuthorization(options: [.alert, .sound]) { granted, error in
             var line = "auth granted=\(granted)"
             if let error = error { line += " error=\(error.localizedDescription)" }
@@ -98,6 +110,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
             self?.pump()
             NotificationInteractions.shared.poll()
             self?.jumpWaiter.poll()
+            self?.sessionMenu?.poll()
         }
         RunLoop.main.add(timer, forMode: .common)
         pumpTimer = timer
@@ -105,6 +118,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
         logLine("started pid=\(ProcessInfo.processInfo.processIdentifier)")
         pump()
         NotificationInteractions.shared.poll()
+        sessionMenu?.poll()
         // Read-only presentation hook for isolated native form validation.
         if let index = CommandLine.arguments.firstIndex(of: "--question-panel"), CommandLine.arguments.count > index + 1 {
             NotificationInteractions.shared.handle(id: CommandLine.arguments[index + 1], action: NotificationInteractions.answer)

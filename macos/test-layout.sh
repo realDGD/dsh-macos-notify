@@ -8,7 +8,7 @@ swiftc -o "$BUILD_DIR/NativeSessionMenuTests" "$HERE/../tests/native-session-men
 "$BUILD_DIR/NativeSessionMenuTests"
 swiftc -o "$BUILD_DIR/NativeNotificationDiagnosticsTests" "$HERE/../tests/native-notification-diagnostics.swift" "$HERE/NotificationPayload.swift" "$HERE/Diagnostics.swift"
 "$BUILD_DIR/NativeNotificationDiagnosticsTests"
-swiftc -o "$BUILD_DIR/NativeQuestionLayoutTests" "$HERE/../tests/native-question-layout.swift" "$HERE/Interactions.swift" "$HERE/MarkdownContext.swift"
+swiftc -o "$BUILD_DIR/NativeQuestionLayoutTests" "$HERE/../tests/native-question-layout.swift" "$HERE/Interactions.swift" "$HERE/MarkdownContext.swift" "$HERE/SessionMenuModel.swift" "$HERE/SessionMenuControl.swift" "$HERE/SessionMenuView.swift" "$HERE/SessionMenu.swift"
 "$BUILD_DIR/NativeQuestionLayoutTests"
 echo "Native layout tests passed; test executable retained at $BUILD_DIR"
 swiftc -o "$BUILD_DIR/NativeMarkdownContextTests" "$HERE/../tests/native-markdown-context.swift" "$HERE/Interactions.swift" "$HERE/MarkdownContext.swift"

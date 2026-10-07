@@ -26,6 +26,12 @@ test('promote_waiting_grandchild preserves completed ancestor actual state and b
   assert.equal(rows.nodes.find(n=>n.id==='parent').descendantBadge,'waiting-questions')
   assert.deepEqual(rows.historyIds,[])
 })
+test('ordinary user forks remain independent roots in the five history slots', () => {
+  const rows=buildMenuRows([fact('parent'),fact('fork',{parentId:'parent',origin:null,updatedAt:5,terminal:{turn:1,kind:'completed',time:5}})])
+  assert.deepEqual(rows.historyIds,['fork','parent'])
+  assert.equal(rows.nodes.find(n=>n.id==='fork').parentId,null)
+  assert.deepEqual(rows.nodes.find(n=>n.id==='parent').childIds,[])
+})
 test('orphan_and_cycle: missing/cyclic parents never enter root history or recur forever', () => {
   const rows=buildMenuRows([fact('orphan',{parentId:'missing',origin:'subagent',running:true}),
     fact('a',{parentId:'b',origin:'subagent',running:true}),fact('b',{parentId:'a',origin:'subagent'}),fact('a'),fact('/invalid')])

@@ -66,6 +66,25 @@ test('Desktop 选中失败时不 ack，也不抢在应用初始导航之前跳�
   assert.deepEqual(ack, [])
 })
 
+test('child_workspace_route: nested catalog child connects ancestor workspace before selecting the child', async () => {
+  const ack=[]
+  const rpc={call:async(_channel,endpoint,payload)=>endpoint.endsWith('/pending')?{ok:true,value:{requestId:'child-click',sessionId:'grandchild',createdAt:Date.now()}}:(ack.push(payload),{ok:true})}
+  const f=makeCtx({ids:['here','root','child','grandchild'],rpc,workspaces:[{workspaceId:'ws-a',sessionIds:['here']},{workspaceId:'ws-b',sessionIds:['root']}]})
+  f.byId.child.parentId='root';f.byId.grandchild.parentId='child'
+  appFinishesBoot(f.workspace,'here');loadPlugin({protocol:'dsh-app:',intervals:[]}).exported.apply(f.ctx)
+  await sleep(40)
+  assert.deepEqual(f.calls,['openWorkspace:ws-b','openSession:grandchild']);assert.equal(ack[0]?.sessionId,'grandchild')
+})
+test('cold child uses Host authenticated lineage and official direct-parent address, then confirms its actual ID', async () => {
+  const address={parentSessionId:'child',childSessionId:'grandchild',mode:'unknown'},ack=[]
+  const rpc={call:async(_channel,endpoint,payload)=>endpoint.endsWith('/pending')?{ok:true,value:{requestId:'cold-child-click',sessionId:'grandchild',createdAt:Date.now(),lineage:['root','child','grandchild'],address}}:(ack.push(payload),{ok:true})}
+  const f=makeCtx({ids:['here','root'],rpc,workspaces:[{workspaceId:'ws-a',sessionIds:['here']},{workspaceId:'ws-b',sessionIds:['root']}]})
+  appFinishesBoot(f.workspace,'here');loadPlugin({protocol:'dsh-app:',intervals:[]}).exported.apply(f.ctx)
+  await sleep(40)
+  assert.deepEqual(f.calls,['openWorkspace:ws-b','openSession:grandchild']);assert.deepEqual(JSON.parse(JSON.stringify(f.openedTargets[0])),address)
+  assert.equal(ack[0]?.sessionId,'grandchild')
+})
+
 /** 在 Node 沙箱里加载插件，返回其 exports。 */
 function loadPlugin({ search = '', protocol = 'http:', intervals = null, react = null, focused = () => true } = {}) {
   const windowEvents = new Map(), documentEvents = new Map()
@@ -125,6 +144,7 @@ function loadPlugin({ search = '', protocol = 'http:', intervals = null, react =
  */
 function makeCtx({ ids = ['s1'], workspaces = [{ workspaceId: 'ws-a', sessionIds: ids }], activationWorks = true, rpc = null } = {}) {
   const calls = []
+  const openedTargets = []
   const listeners = []
   const byId = {}
   for (const id of ids) byId[id] = { id, running: false }
@@ -139,8 +159,10 @@ function makeCtx({ ids = ['s1'], workspaces = [{ workspaceId: 'ws-a', sessionIds
     selection: { getSnapshot: () => ({}) },
     workspaces: { list: { getSnapshot: () => ({ phase: 'ready', items: workspaces }) } },
     openSession(id) {
-      calls.push(`openSession:${id}`)
-      if (activationWorks) workspace.mainReference = { sessionId: id }
+      openedTargets.push(id)
+      const selected = typeof id === 'string' ? id : id.childSessionId
+      calls.push(`openSession:${selected}`)
+      if (activationWorks) workspace.mainReference = { sessionId: selected }
     },
     openWorkspace(workspaceId) {
       calls.push(`openWorkspace:${workspaceId}`)
@@ -161,7 +183,7 @@ function makeCtx({ ids = ['s1'], workspaces = [{ workspaceId: 'ws-a', sessionIds
   /** 模拟"会话目录发生变化"，触发插件订阅的回调。 */
   const notifyListChanged = () => { for (const fn of listeners) fn() }
 
-  return { ctx, calls, workspace, notifyListChanged }
+  return { ctx, calls, workspace, notifyListChanged, byId, openedTargets }
 }
 
 /** 让应用自己完成初始导航（等价于协调器跑完 restoreSelection）。 */

@@ -45,6 +45,12 @@ test('fork_and_turn_boundaries: inherited input/answer and old todo do not becom
  const f=fixture([s]);const source=createMenuSource(f.ctx);const row=source.liveFacts()[0];source.dispose()
  assert.equal(row.userText,'');assert.equal(row.taskText,'新的任务');assert.equal(row.answerTurn,null);assert.equal(row.terminal,null);assert.equal(row.todos,null)
 })
+test('ordinary fork lineage resolves workspace without classifying it as a subagent',()=>{
+ const parent=session('parent',[]),fork=session('fork',[event(0,'turn/start',{turn:1}),event(1,'user/message',user('独立分支提问'))],{parentSession:'parent',isSeeded:true,cwd:'/different/fork'})
+ const f=fixture([parent,fork]),source=createMenuSource(f.ctx),row=source.liveFacts().find(f=>f.id==='fork')
+ assert.equal(row.workspaceTitle,'工作区名称');assert.equal(row.parentId,null);assert.equal(row.origin,null)
+ assert.equal(row.userText,'独立分支提问');source.dispose()
+})
 test('human_vs_task_preview ignores injected instructions and superseded message nodes',()=>{
  const s=session('child',[event(0,'turn/start',{turn:1}),event(1,'user/message',user('任务','agent-message')),event(2,'user/message',user('真人输入')),event(3,'user/message',user('后面的注入指令','agent-instructions'))],{origin:'subagent'})
  const f=fixture([s]);const source=createMenuSource(f.ctx)

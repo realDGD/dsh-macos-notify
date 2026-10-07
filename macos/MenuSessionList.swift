@@ -27,6 +27,13 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
  }
  required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
  deinit {if let observer=observer{NotificationCenter.default.removeObserver(observer)}}
+ override func layout(){super.layout();updateScrollChrome()}
+ func updateScrollChrome() {
+  // NSTableView can retain a 52pt minimum frame for a 32pt empty-state row.
+  // Only real content overflow warrants a visible scrollbar.
+  let needed=rows.contains{$0.sessionId != nil} && naturalHeight>scrollView.bounds.height+1
+  if scrollView.hasVerticalScroller != needed{scrollView.hasVerticalScroller=needed}
+ }
  func update(ids:[String],nodes:[String:MenuNode],expanded:Set<String>,stale:Bool,empty:String) {
   let selected=selectedId
   self.nodes=nodes;self.expanded=expanded;self.stale=stale;rows=[]
@@ -38,6 +45,7 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
   }
   if rows.isEmpty{rows=[MenuVisibleRow(sessionId:nil,section:empty,depth:0)]}
   table.reloadData()
+  updateScrollChrome()
   if let selected=selected,let index=rows.firstIndex(where:{$0.sessionId==selected}){table.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false)}
   updateSticky()
  }

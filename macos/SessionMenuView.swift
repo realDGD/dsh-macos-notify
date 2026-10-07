@@ -146,7 +146,7 @@ final class SessionMenuViewController:NSViewController {
   if spare>0{a+=min(spare,max(0,activeList.naturalHeight-a));h=min(historyList.naturalHeight,budget-a)}
   activeHeight.constant=a;historyHeight.constant=h
   view.setFrameSize(NSSize(width:min(420,availableSize.width),height:min(availableSize.height,a+h+170)))
-  view.layoutSubtreeIfNeeded();activeList.updateSticky();historyList.updateSticky()
+  view.layoutSubtreeIfNeeded();activeList.updateScrollChrome();historyList.updateScrollChrome();activeList.updateSticky();historyList.updateSticky()
  }
  func toggle(_ id:String){guard nodes[id] != nil else{return};if expanded.contains(id){expanded.remove(id)}else{expanded.insert(id)};rebuild()}
  @objc private func toggleRead(){activityState.toggleRead(ids:(snapshot?.activeIds ?? [])+(snapshot?.orphanIds ?? []),nodes:nodes);rebuild()}

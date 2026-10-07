@@ -7,6 +7,7 @@
 - Add activity filters and reversible bulk read acknowledgment; keep live sessions and required input visible, preserve private read marks across helper restarts and reveal new turns.
 - Separate activity and recent-history viewports, put connection status alongside the heading, keep expanded roots reachable and enlarge disclosure controls.
 - Remove unused disclosure spacing from root conversations without subagents while preserving nested tree alignment.
+- Hide scrollbars for empty sections and for session content that fits its own viewport.
 - Put completed/total inside todo rings and use a green check when all todos finish. Preserve notification navigation, questions and approval behavior.
 
 ## 0.4.1

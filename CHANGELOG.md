@@ -3,7 +3,8 @@
 ## 0.5.0
 
 - Resize the popover before its content view so AppKit cannot restore the old outer size and clip expanded rows.
-- Use native expand/collapse animation with stable parent-first resizing; retain unchanged session rows and avoid duplicate size updates.
+- Animate section height with a short synchronized transition instead of the whole popover effect. Respect Reduce Motion, retain unchanged rows and sticky roots, and replace interrupted transitions from their current size.
+- Share four compact rows between activity and recent history: split evenly when both overflow and lend unused slots to the longer section. Show each section's disclosure only when more rows remain.
 - Avoid rebuilding session rows while the menu is closed or a request submenu is tracking. Multiple approvals include the command and numbered request labels.
 
 - Add per-session menu-bar Allow once, Deny, approval details and complete question-form actions. Multiple requests use explicitly bound entries; stale, submitting and already accepted requests cannot be submitted again.

@@ -139,6 +139,22 @@ import CryptoKit
    content.view.cacheDisplay(in:content.view.bounds,to:bitmap)
    try bitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:target))
   }
+  // Compact sections share four whole rows: keep a balanced split when both
+  // overflow and lend unused slots without showing an unnecessary disclosure.
+  for (aCount,hCount,aSlots,hSlots) in [(5,5,2,2),(1,5,1,3),(5,1,3,1),(0,5,0,4),(5,0,4,0),(3,1,3,1),(2,2,2,2),(1,1,1,1)] {
+   let aIds=(0..<aCount).map{"pool-a-\($0)"},hIds=(0..<hCount).map{"pool-h-\($0)"}
+   let pooledStore=SessionMenuStore()
+   check(pooledStore.ingest(data((aIds+hIds).map{node($0)},active:aIds,history:hIds),at:1000),"pooled fixture decode")
+   let pooled=SessionMenuViewController(availableSize:NSSize(width:420,height:600))
+   pooled.update(snapshot:pooledStore.snapshot,status:"DSH 已连接",stale:false,error:nil)
+   let pooledWindow=NSWindow(contentRect:pooled.view.frame,styleMask:[],backing:.buffered,defer:false)
+   pooledWindow.contentViewController=pooled;pooled.view.layoutSubtreeIfNeeded()
+   check(pooled.activeList.frame.height==CGFloat(aSlots==0 ? 32:aSlots*64),"activity did not receive its pooled compact slots for \(aCount)/\(hCount)")
+   check(pooled.historyList.frame.height==CGFloat(hSlots==0 ? 32:hSlots*64),"history did not receive its pooled compact slots for \(aCount)/\(hCount)")
+   let labels=Set(descendants(pooled.view).compactMap{$0 as? NSButton}.filter{!$0.isHiddenOrHasHiddenAncestor}.compactMap{$0.accessibilityLabel()})
+   check(labels.contains("展开活动会话")==Bool(aCount>aSlots),"activity disclosure threshold disagrees with allocated slots")
+   check(labels.contains("展开最近会话")==Bool(hCount>hSlots),"history disclosure threshold disagrees with allocated slots")
+  }
   let sections=SessionMenuViewController(availableSize:NSSize(width:420,height:600))
   sections.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil)
   sections.toggle("parent")
@@ -172,6 +188,10 @@ import CryptoKit
   let end=sections.activeList.scrollView.contentView.bounds
   check(end.maxY>=sections.activeList.naturalHeight-1 && steps>0 && steps<500,"arrow navigation cannot reach the last child")
   check(sections.activeList.stickyRootId=="parent" && sectionButton("向上查看活动会话")?.isEnabled==true,"arrow navigation lost the root or return control")
+  let stickyContainer=sections.activeList.subviews.compactMap{$0 as? NSVisualEffectView}.first!
+  let stableStickyRow=stickyContainer.subviews.first
+  sections.activeList.updateSticky()
+  check(stickyContainer.subviews.first===stableStickyRow,"unchanged sticky root was rebuilt during viewport layout")
   let endOrigin=end.origin
   sections.activeList.table.scrollWheel(with:wheel);sections.activeList.scrollView.scrollWheel(with:wheel)
   check(sections.activeList.scrollView.contentView.bounds.origin==endOrigin,"expanded panel still responds to the wheel")

@@ -76,6 +76,8 @@ final class SessionMenuViewController:NSViewController,NSTableViewDataSource,NST
   table.intercellSpacing=NSSize(width:0,height:0);table.dataSource=self;table.delegate=self;table.target=self;table.action=#selector(clicked)
   table.keyHandler={[weak self] key in self?.handleKey(key) ?? false}
   table.setAccessibilityLabel("DSH 会话列表")
+  table.backgroundColor = .clear
+  scrollView.drawsBackground=false;scrollView.contentView.drawsBackground=false
   scrollView.documentView=table;scrollView.hasVerticalScroller=true;scrollView.hasHorizontalScroller=false;scrollView.autohidesScrollers=true
   for child in [heading,gear,connection,scrollView,errorLabel,footer]{child.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(child)}
   NSLayoutConstraint.activate([

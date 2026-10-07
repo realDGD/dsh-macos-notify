@@ -43,7 +43,7 @@ final class MenuIconView:NSView {
   if value.running && !reduceMotion {
    if fish.animation(forKey:"swim")==nil {
     let rotation=CAKeyframeAnimation(keyPath:"transform.rotation.z")
-    rotation.values=[0,Double.pi*2,Double.pi*2];rotation.keyTimes=[0,0.5,1];rotation.duration=2;rotation.repeatCount = .infinity
+    rotation.values=[0,-Double.pi*2,-Double.pi*2];rotation.keyTimes=[0,0.5,1];rotation.duration=2;rotation.repeatCount = .infinity
     rotation.timingFunctions=[CAMediaTimingFunction(name:.easeInEaseOut),CAMediaTimingFunction(name:.linear)]
     fish.add(rotation,forKey:"swim")
    }

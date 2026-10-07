@@ -54,7 +54,7 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
   table.reloadData()
   updateScrollChrome()
   if let selected=selected,let index=rows.firstIndex(where:{$0.sessionId==selected}){table.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false)}
-  updateSticky()
+  updateSticky(force:true)
  }
  var selectedId:String? {table.selectedRow>=0 && table.selectedRow<rows.count ? rows[table.selectedRow].sessionId:nil}
  var naturalHeight:CGFloat {CGFloat(rows.reduce(0){$0+($1.sessionId==nil ? 32:64)})}
@@ -81,7 +81,7 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
    clip.scroll(to:NSPoint(x:0,y:max(0,rect.minY-64)));scrollView.reflectScrolledClipView(clip);updateSticky()
   }
  }
- func updateSticky() {
+ func updateSticky(force:Bool=false) {
   defer{onViewportChange?()}
   var root:String?
   let top=scrollView.contentView.bounds.minY
@@ -91,7 +91,9 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
    while let parent=nodes[candidate]?.parentId,seen.insert(candidate).inserted{candidate=parent}
    if expanded.contains(candidate){root=candidate}
   }
+  let previousRoot=stickyRootId
   stickyRootId=root;sticky.isHidden=root==nil
+  if !force && previousRoot==root{return}
   for child in sticky.subviews{child.removeFromSuperview()}
   guard let id=root,let node=nodes[id] else{return}
   let row=makeRow(node,depth:0,expanded:true)

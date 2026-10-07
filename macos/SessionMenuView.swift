@@ -164,6 +164,7 @@ final class SessionMenuViewController:NSViewController {
  private let connection=NSTextField(labelWithString:""),errorLabel=NSTextField(labelWithString:""),footer=NSTextField(labelWithString:"")
  private let activeMore=MenuSectionControls("活动会话"),historyMore=MenuSectionControls("最近会话")
  private var activityExpanded=false,historyExpanded=false
+ private var resizeAnimation:Timer?
  private var snapshot:MenuSnapshot?,nodes:[String:MenuNode]=[:],expanded=Set<String>(),stale=false
  private let availableSize:NSSize
  private var activeHeight:NSLayoutConstraint!,historyHeight:NSLayoutConstraint!
@@ -223,20 +224,28 @@ final class SessionMenuViewController:NSViewController {
   footer.isHidden = !hasOverflow;footerHeight.constant=hasOverflow ? 17:0;footerSpacing.constant=hasOverflow ? (hasError ? 2:4):0
   rebuild()
  }
- private func rebuild(reloadRows:Bool=true) {
+ deinit {resizeAnimation?.invalidate()}
+ private func rebuild(reloadRows:Bool=true,animate:Bool=false) {
+  resizeAnimation?.invalidate();resizeAnimation=nil
   if reloadRows {
    let ids=(snapshot?.activeIds ?? [])+(snapshot?.orphanIds ?? [])
    activeList.update(ids:ids,nodes:nodes,expanded:expanded,stale:stale,empty:snapshot?.availability=="loading" ? "正在加载会话…":"暂无本次连接的活动会话")
    historyList.update(ids:Array((snapshot?.historyIds ?? []).prefix(5)),nodes:nodes,expanded:expanded,stale:stale,empty:"暂无最近会话")
   }
   // Reserve space for both lists; neither must be reached by scrolling the other.
-  let base=117+errorSpacing.constant+errorHeight.constant+footerSpacing.constant+footerHeight.constant,limit:CGFloat=128
-  let desiredA=activityExpanded ? activeList.naturalHeight:min(activeList.naturalHeight,limit)
-  let desiredH=historyExpanded ? historyList.naturalHeight:min(historyList.naturalHeight,limit)
-  var aMore=activeList.naturalHeight>limit,hMore=historyList.naturalHeight>limit
+  let base=117+errorSpacing.constant+errorHeight.constant+footerSpacing.constant+footerHeight.constant
+  let perSection=2,aCount=activeList.rows.filter{$0.sessionId != nil}.count,hCount=historyList.rows.filter{$0.sessionId != nil}.count
+  var aSlots=min(aCount,perSection),hSlots=min(hCount,perSection)
+  let spareSlots=perSection*2-aSlots-hSlots
+  let extraA=min(spareSlots,aCount-aSlots);aSlots+=extraA
+  hSlots+=min(spareSlots-extraA,hCount-hSlots)
+  let compactA=aCount==0 ? activeList.naturalHeight:CGFloat(aSlots)*64
+  let compactH=hCount==0 ? historyList.naturalHeight:CGFloat(hSlots)*64
+  let desiredA=activityExpanded ? activeList.naturalHeight:compactA
+  let desiredH=historyExpanded ? historyList.naturalHeight:compactH
+  var aMore=activeList.naturalHeight>compactA,hMore=historyList.naturalHeight>compactH
   func heights(_ overhead:CGFloat)->(CGFloat,CGFloat) {
    let budget=max(0,min(600,availableSize.height)-overhead)
-   let compactA=min(activeList.naturalHeight,limit),compactH=min(historyList.naturalHeight,limit)
    var a=min(compactA,budget*0.62),h=min(compactH,budget*0.38)
    let spare=budget-a-h
    if spare>0 {a+=min(spare,max(0,compactA-a));h=min(compactH,budget-a)}
@@ -258,10 +267,31 @@ final class SessionMenuViewController:NSViewController {
   }
   var overhead=base+(aMore ? 24:0)+(hMore ? 24:0)
   var (a,h)=heights(overhead)
-  aMore = aMore || (activeList.rows.contains{$0.sessionId != nil} && activeList.naturalHeight>a+1)
-  hMore = hMore || (historyList.rows.contains{$0.sessionId != nil} && historyList.naturalHeight>h+1)
-  overhead=base+(aMore ? 24:0)+(hMore ? 24:0);(a,h)=heights(overhead)
+  // A new disclosure consumes space and may make the other list overflow.
+  // Each flag can only become true, so this settles after at most two additions.
+  while true {
+   let nextA=aMore || (aCount>0 && activeList.naturalHeight>a+1)
+   let nextH=hMore || (hCount>0 && historyList.naturalHeight>h+1)
+   if nextA==aMore && nextH==hMore{break}
+   aMore=nextA;hMore=nextH;overhead=base+(aMore ? 24:0)+(hMore ? 24:0);(a,h)=heights(overhead)
+  }
   activeMoreHeight.constant=aMore ? 24:0;historyMoreHeight.constant=hMore ? 24:0
+  let startA=activeHeight.constant,startH=historyHeight.constant
+  guard animate,view.window?.isVisible==true,!NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+        abs(startA-a)+abs(startH-h)>1 else {applyLayout(a,h,overhead:overhead);return}
+  let started=ProcessInfo.processInfo.systemUptime
+  let timer=Timer(timeInterval:1/60,repeats:true){[weak self] timer in
+   guard let self=self else{timer.invalidate();return}
+   let t=min(1,(ProcessInfo.processInfo.systemUptime-started)/0.16)
+   if t>=1 || self.view.window?.isVisible != true {
+    timer.invalidate();self.resizeAnimation=nil;self.applyLayout(a,h,overhead:overhead);return
+   }
+   let eased=CGFloat(t*t*(3-2*t))
+   self.applyLayout((startA+(a-startA)*eased).rounded(),(startH+(h-startH)*eased).rounded(),overhead:overhead)
+  }
+  resizeAnimation=timer;RunLoop.main.add(timer,forMode:.common)
+ }
+ private func applyLayout(_ a:CGFloat,_ h:CGFloat,overhead:CGFloat) {
   activeHeight.constant=a;historyHeight.constant=h
   let desiredSize=NSSize(width:min(420,availableSize.width),height:min(availableSize.height,a+h+overhead))
   // Resize the popover before its child view. Resizing the child first lets
@@ -275,8 +305,8 @@ final class SessionMenuViewController:NSViewController {
   activeMore.update(needed:activeMoreHeight.constant>0,expanded:activityExpanded,list:activeList)
   historyMore.update(needed:historyMoreHeight.constant>0,expanded:historyExpanded,list:historyList)
  }
- private func toggleActivityExpansion(){activityExpanded.toggle();rebuild(reloadRows:false);if !activityExpanded{activeList.resetViewport()}}
- private func toggleHistoryExpansion(){historyExpanded.toggle();rebuild(reloadRows:false);if !historyExpanded{historyList.resetViewport()}}
+ private func toggleActivityExpansion(){activityExpanded.toggle();rebuild(reloadRows:false,animate:true);if !activityExpanded{activeList.resetViewport()}}
+ private func toggleHistoryExpansion(){historyExpanded.toggle();rebuild(reloadRows:false,animate:true);if !historyExpanded{historyList.resetViewport()}}
  func toggle(_ id:String){guard nodes[id] != nil else{return};if expanded.contains(id){expanded.remove(id)}else{expanded.insert(id)};rebuild()}
  @discardableResult func handleKey(_ key:UInt16,list:MenuSessionList?=nil)->Bool {
   let list=list ?? activeList,rows=list.rows,table=list.table

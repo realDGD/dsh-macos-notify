@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- Scope activity to runs observed or started during the current Host connection; retain their terminal results without importing old errors or dormant pins.
+- Distinguish official user/parent/hook/environment cancellation causes from failures, crash recovery and unknown legacy stops. Use 未分组 for sessions outside registered workspaces.
+- Add activity filters and reversible bulk read acknowledgment; keep live sessions and required input visible, preserve private read marks across helper restarts and reveal new turns.
+- Separate activity and recent-history viewports, put connection status alongside the heading, keep expanded roots reachable and enlarge disclosure controls.
+- Put completed/total inside todo rings and use a green check when all todos finish. Preserve notification navigation, questions and approval behavior.
+
 ## 0.4.1
 
 - Blend the session table and scrolling viewport into the native popover material instead of showing a separate opaque dark rectangle.

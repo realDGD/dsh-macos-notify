@@ -1,17 +1,22 @@
 import Foundation
 enum MenuSessionState:String,Codable,CaseIterable {
  case waitingQuestions="waiting-questions",waitingApproval="waiting-approval",error,interrupted,maxTokens="max-tokens",running,completed,stopped,paused,unknown
+ case parentStopped="parent-stopped",hookStopped="hook-stopped",environmentStopped="environment-stopped",cancelled
  var label:String {switch self {
  case .waitingQuestions:return "等待回答";case .waitingApproval:return "等待审批";case .error:return "出错"
  case .interrupted:return "异常中断";case .maxTokens:return "输出上限";case .running:return "运行中"
- case .completed:return "已完成";case .stopped:return "已停止";case .paused:return "已暂停";case .unknown:return "状态未知"
+ case .completed:return "已完成";case .stopped:return "用户停止";case .paused:return "已暂停";case .unknown:return "状态未知"
+ case .parentStopped:return "随主会话停止";case .hookStopped:return "规则取消";case .environmentStopped:return "运行环境停止";case .cancelled:return "停止原因未知"
  }}
+ var isLive:Bool {self == .running || self == .waitingQuestions || self == .waitingApproval}
+ var isFailure:Bool {self == .error || self == .interrupted || self == .maxTokens}
 }
 struct MenuProgress:Codable {let completed:Int;let total:Int}
 struct MenuNode:Codable {
  let id:String;let parentId:String?;let workspaceTitle:String;let sessionTitle:String;let state:MenuSessionState
  let preview:String;let previewKind:String;let pinned:Bool;let pinIndex:Int?;let progress:MenuProgress?
  let childIds:[String];let descendantBadge:String?;let updatedAt:Double
+ let activityToken:String?
  var title:String {workspaceTitle+" · "+sessionTitle}
  var accessibleLabel:String {
   var result=title+"，"+state.label
@@ -56,6 +61,7 @@ final class SessionMenuStore {
   for node in value.nodes {
    guard menuSessionIdValid(node.id),byId[node.id]==nil,node.title.unicodeScalars.count<=200,node.preview.unicodeScalars.count<=240,
          !node.preview.contains(where:{$0.isNewline}),["user","task","answer","empty"].contains(node.previewKind),
+         node.activityToken==nil || node.activityToken!.utf8.count<=100,
          node.childIds.count<=2000,Set(node.childIds).count==node.childIds.count,node.updatedAt.isFinite,node.updatedAt>=0,
          node.pinIndex==nil || node.pinIndex!>=0,node.descendantBadge==nil || MenuSessionState(rawValue:node.descendantBadge!) != nil else{return false}
    if let progress=node.progress {guard progress.total>0,progress.completed>=0,progress.completed<=progress.total else{return false}}

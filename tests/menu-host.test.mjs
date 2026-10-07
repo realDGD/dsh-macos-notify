@@ -9,10 +9,10 @@ const settle=()=>new Promise(r=>setImmediate(r))
 async function fixture(t,{missing=false,blocked=false}={}) {
  const {Context}=await import(process.env.DSH_CORDIS_MODULE||'@deepseek-ai/cordis'),ctx=new Context()
  const dir=mkdtempSync(join(tmpdir(),'notify-menu-host-')),settings=createSettings(dir),states=new Map(),queries={count:0},clock={value:10000}
- const events=[],s={id:'session-test',header:{id:'session-test',version:4,createdAt:100,cwd:'/fixture',isSeeded:false},inheritedEventCount:0,
+ const running=new Set(['session-test']),events=[],s={id:'session-test',header:{id:'session-test',version:4,createdAt:100,cwd:'/fixture',isSeeded:false},inheritedEventCount:0,
   get seq(){return events.length},snapshotEvents:start=>events.slice(start??0),surface:{nodes:[],contentGeneration:0},eventAt:seq=>events[seq],deriveEventMessage:e=>e.data.message??e.data}
  let release
- if(!missing){ctx.provide('sessions',{list:()=>[s],get:id=>id===s.id?s:undefined});ctx.provide('agents',{get:()=>({status:'running'})})
+ if(!missing){ctx.provide('sessions',{list:()=>[s],get:id=>id===s.id?s:undefined});ctx.provide('agents',{get:id=>running.has(id)?{status:'running'}:undefined})
   ctx.provide('sessionQuery',{listSessions:async signal=>{queries.count++;if(blocked)await new Promise(r=>release=r);return [{header:s.header,live:true,persisted:true}]},observeSession:async()=>{throw new Error('live requires no lease')},readSurface:async()=>{throw new Error('live requires no cold read')}})
  }
  let menu
@@ -20,7 +20,7 @@ async function fixture(t,{missing=false,blocked=false}={}) {
  t.after(async()=>{release?.();await ctx.fiber.dispose();rmSync(dir,{recursive:true,force:true})})
  const read=()=>JSON.parse(readFileSync(join(dir,'session-menu.json'),'utf8'))
  const advance=async ms=>{clock.value+=ms;menu.refresh();await settle();menu.refresh()}
- return {ctx,fiber,dir,settings,states,clock,menu,queries,read,advance,release:()=>release?.()}
+ return {ctx,fiber,dir,settings,states,clock,menu,queries,read,advance,running,s,events,release:()=>release?.()}
 }
 test('baseline_loading_to_ready and private_snapshot use whole bounded envelopes',async t=>{
  const f=await fixture(t);assert.equal(f.read().availability,'loading');await f.advance(1000)
@@ -55,4 +55,29 @@ test('late_read_after_dispose cannot write and generations differ across activat
 test('service_absence is unavailable without fabricated completion or prevented lifecycle',async t=>{
  const f=await fixture(t,{missing:true});assert.equal(f.read().availability,'unavailable');assert.deepEqual(f.read().nodes,[])
  await f.advance(2000);assert.equal(f.read().availability,'unavailable')
+})
+
+test('activity retains completion only for runs observed during the current connection',async t=>{
+ const f=await fixture(t);await f.advance(1000)
+ f.running.clear()
+ f.events.push({seq:0,time:12000,type:'turn/end',data:{turn:1,reason:{kind:'completed'}}})
+ f.ctx.emit('session/event',f.s,f.events[0]);await f.advance(1000)
+ assert.deepEqual(f.read().activeIds,['session-test'])
+ assert.equal(f.read().nodes[0].state,'completed')
+})
+test('old error at baseline is history while a quick start/end after connection is activity',async t=>{
+ const f=await fixture(t);f.running.clear()
+ // Re-activate to establish a new connection with an idle historical failure.
+ await f.fiber.dispose()
+ f.events.push({seq:0,time:1,type:'turn/end',data:{turn:1,reason:{kind:'error'}}})
+ let next
+ await f.ctx.plugin({name:'menu-reconnect',apply:owner=>{next=installSessionMenu(owner,{stateDir:f.dir,settings:f.settings,now:()=>f.clock.value})}})
+ f.clock.value+=1000;next.refresh();await settle();next.refresh()
+ assert.deepEqual(f.read().activeIds,[])
+ const start={seq:1,time:12000,type:'turn/start',data:{turn:2}}
+ f.events.push(start);f.ctx.emit('session/event',f.s,start)
+ const end={seq:2,time:12001,type:'turn/end',data:{turn:2,reason:{kind:'completed'}}}
+ f.events.push(end);f.ctx.emit('session/event',f.s,end)
+ f.clock.value+=1000;next.refresh()
+ assert.deepEqual(f.read().activeIds,['session-test'])
 })

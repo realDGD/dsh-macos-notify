@@ -82,3 +82,20 @@ test('markdown_plain_preview: safe one line text without image/html behavior', (
   const rows=buildMenuRows([fact('untitled',{sessionTitle:'',running:true})])
   assert.equal(rows.nodes[0].sessionTitle,'未命名会话')
 })
+
+// Regressions: a historical error is not activity; causes are not all user stops.
+test('activity_membership keeps observed endings and excludes untouched old failures and pins',()=>{
+ const rows=buildMenuRows([fact('old-error',{terminal:{turn:1,kind:'error',time:9}}),fact('old-pin',{pinIndex:0}),
+  fact('finished-now',{terminal:{turn:1,kind:'completed',time:10}}),fact('parent'),
+  fact('child-now',{parentId:'parent',origin:'subagent',terminal:{turn:1,kind:'error',time:11}})],
+  {activityIds:new Set(['finished-now','child-now'])})
+ assert.deepEqual(rows.activeIds,['parent','finished-now'])
+ assert.deepEqual(rows.historyIds,['old-error','old-pin'])
+})
+test('cancellation causes preserve user intent and do not invent abnormal crashes',()=>{
+ const causes=['user','parent','hook','disposed','legacy',undefined]
+ const rows=buildMenuRows(causes.map((cause,i)=>fact('cancel-'+i,{pinIndex:i,terminal:{turn:1,kind:'aborted',cause,time:10-i}})),
+  {activityIds:new Set(causes.map((_,i)=>'cancel-'+i))})
+ assert.deepEqual(causes.map((_,i)=>rows.nodes.find(n=>n.id==='cancel-'+i).state),
+  ['stopped','parent-stopped','hook-stopped','environment-stopped','cancelled','cancelled'])
+})

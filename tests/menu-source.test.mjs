@@ -105,3 +105,10 @@ test('dispose releases the retained observation before any blocked secondary sur
  source.dispose();const released=f.metrics.disposals;release?.();await work
  assert.equal(released,1);assert.equal(f.metrics.surfaceReads,0)
 })
+
+test('unregistered cwd is ungrouped instead of a temporary directory workspace',()=>{
+ const f=fixture([session('unregistered',[],{cwd:'/tmp/e2e-project-random'})])
+ f.services.workspaceRegistry.list=()=>[]
+ const source=createMenuSource(f.ctx)
+ assert.equal(source.liveFacts()[0].workspaceTitle,'未分组');source.dispose()
+})

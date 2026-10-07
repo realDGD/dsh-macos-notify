@@ -38,7 +38,7 @@ Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's C
 
 3. In DSH Desktop, open the left sidebar’s **Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
 
-   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.4.1`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
+   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.5.0`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
 
 4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it. The test status becomes confirmed only after Desktop verifies the target session; queueing or macOS acceptance alone does not prove a visible banner or successful navigation.
 
@@ -69,6 +69,10 @@ Click the DSH Notify menu-bar icon to open the native session panel. Each row sh
 Official Pins come first, followed by requests waiting for input/approval and failures or involuntary interruption, then running sessions. The history section contains up to five recent eligible root conversations; subagents and pinned/activity rows do not consume those slots. Expand the disclosure arrow to inspect nested subagents. A waiting or pinned descendant promotes its ancestor branch while preserving the ancestor’s own state. Colors always have text labels. A ring counts completed/current task items for that row only; no plan means no ring.
 
 A row click closes the popover and uses verified Desktop session selection. Navigation failure is shown when you reopen the panel. Existing question-window drafts remain intact. Keyboard arrows navigate and expand/collapse; Return opens a session and Escape closes the panel. The panel scrolls and adapts to available screen space.
+
+Activity starts with sessions running or awaiting input when the Host connects, then follows turns actually started during that connection. It retains their completions and failures; older failures and dormant pins belong to recent history. Unregistered working directories are labeled **未分组**, matching DSH's grouping. Official cancellation causes distinguish user stops, parent stops, hook cancellations and environment shutdown from actual failures or crash recovery; unknown legacy causes stay explicit.
+
+The header puts connection status beside the app name. Activity and the five recent root sessions use independent scroll areas. Activity offers **全部 / 只看报错 / 只看活动中** and **一键已读 / 取消已读**. Acknowledging terminal activity moves it out of that list; running sessions and unanswered questions/approvals remain visible. Undo restores the batch. Private read marks survive a helper restart for the same Host generation and cannot hide a new turn. Expanded trees keep the root's larger collapse control reachable while scrolling. Task fractions sit inside the ring; a complete todo list shows a green check.
 
 Enable or disable it in **DSH Settings → DSH Notify → 菜单栏会话面板**. The panel’s gear can also disable it through the same validated setting. Notifications and question/approval windows keep working. To re-enable, use the existing DSH settings section. Initial discovery shows loading; a missing service shows unavailable, and an absent Host heartbeat marks retained data stale after six seconds. Snapshots are private, capped at 4 MiB/2,000 nodes, with an explicit omitted count when limited. History refreshes no more frequently than every 30 seconds. One active local Host/state namespace is supported.
 

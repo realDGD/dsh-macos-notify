@@ -12,11 +12,12 @@ final class SessionMenuController:NSObject {
   self.directory=directory;self.openSession=openSession;self.openDesktop=openDesktop;control=SessionMenuControl(directory:directory)
   self.interactions=interactions;self.performInteraction=performInteraction
   let screen=NSScreen.main?.visibleFrame.size ?? NSSize(width:420,height:600)
-  content=SessionMenuViewController(availableSize:NSSize(width:min(420,max(180,screen.width-24)),height:min(600,max(180,screen.height-48))),directory:directory)
+  content=SessionMenuViewController(availableSize:NSSize(width:min(420,max(180,screen.width-24)),height:min(600,max(180,screen.height-48))))
   super.init();popover.behavior = .transient;popover.contentViewController=content
   content.onOpenSession={[weak self] id in self?.navigate(id)}
   content.onInteraction={[weak self] item,action in self?.act(item,action:action)}
   content.onClose={[weak self] in self?.popover.performClose(nil)}
+  content.onResize={[weak self] size in self?.popover.contentSize=size}
   content.onDisableMenu={[weak self] in self?.disable()}
   content.onOpenDesktop={[weak self] in guard let self=self else{return};if !self.openDesktop(){self.actionError="无法打开 DSH Desktop。";self.render()}}
   menuObservers.append(NotificationCenter.default.addObserver(forName:NSMenu.didBeginTrackingNotification,object:nil,queue:.main){[weak self] _ in self?.menuTrackingDepth+=1})

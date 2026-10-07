@@ -1,4 +1,5 @@
 import Cocoa
+import CryptoKit
 @main @MainActor struct NativeSessionMenuTests {
  static func main() throws {
   NSApplication.shared.setActivationPolicy(.prohibited)
@@ -37,7 +38,7 @@ import Cocoa
   check(opened.isEmpty,"disclosure opened Desktop")
   check(content.visibleRows.compactMap(\.sessionId).count==401,"expanded children lost")
   check(content.view.frame.width<=420 && content.view.frame.height<=600,"popover bounds")
-  check(content.scrollView.hasVerticalScroller,"long tree lacks scrolling")
+  check(!content.scrollView.hasVerticalScroller,"long tree still shows a scrollbar instead of expansion arrows")
   let firstIndex=content.visibleRows.firstIndex{$0.sessionId=="parent"}!
   let row=content.table.view(atColumn:0,row:firstIndex,makeIfNecessary:true) as! SessionMenuRowView
   row.layoutSubtreeIfNeeded()
@@ -84,30 +85,14 @@ import Cocoa
   controller.poll(at:2000);check(controller.statusItem==nil && !controller.popover.isShown,"disabled menu retained")
   try data([node("parent")],revision:3,updated:3000).write(to:directory.appendingPathComponent("session-menu.json"))
   controller.poll(at:3000);check(controller.statusItem != nil,"reenabled status item missing")
-  // An acknowledgment must not hide a run or required input, and undo restores it.
+  // Every connection-local status remains visible; the removed controls cannot hide it.
   let activityNodes=[node("done",nil,[],"completed"),node("failure",nil,[],"error"),node("live"),node("question",nil,[],"waiting-questions")]
   let mixed=SessionMenuStore()
   check(mixed.ingest(data(activityNodes,active:["failure","question","live","done"]),at:1000),"activity fixture decode")
   let controls=SessionMenuViewController(availableSize:NSSize(width:420,height:600))
   controls.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
-  let readButton=descendants(controls.view).compactMap{$0 as? NSButton}.first{$0.title=="一键已读"}
-  check(readButton != nil,"activity acknowledgment control missing")
-  readButton!.performClick(nil)
-  check(controls.visibleRows.compactMap(\.sessionId)==["question","live"],"read action concealed running or waiting session")
-  readButton!.performClick(nil)
-  check(controls.visibleRows.compactMap(\.sessionId)==["failure","question","live","done"],"undo failed to restore acknowledged activity")
-  let filter=descendants(controls.view).compactMap{$0 as? NSPopUpButton}.first
-  check(filter != nil,"activity filter missing")
-  filter!.selectItem(at:1);filter!.sendAction(filter!.action,to:filter!.target)
-  check(controls.visibleRows.compactMap(\.sessionId)==["failure"],"error filter included completed or live sessions")
-  filter!.selectItem(at:2);filter!.sendAction(filter!.action,to:filter!.target)
-  check(controls.visibleRows.compactMap(\.sessionId)==["question","live"],"live filter lost required input")
-  filter!.selectItem(at:0);filter!.sendAction(filter!.action,to:filter!.target)
-  readButton!.performClick(nil)
-  var newTurn=activityNodes;newTurn[0]["activityToken"]="turn:2"
-  check(mixed.ingest(data(newTurn,active:["failure","question","live","done"],revision:2),at:1000),"new turn decode")
-  controls.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
-  check(controls.visibleRows.compactMap(\.sessionId)==["question","live","done"],"new run was concealed by older read acknowledgment")
+  check(!descendants(controls.view).compactMap{$0 as? NSButton}.contains{["一键已读","取消已读"].contains($0.title) || $0.accessibilityLabel()=="活动会话筛选"},"removed read/filter controls remain in the panel")
+  check(controls.visibleRows.compactMap(\.sessionId)==["failure","question","live","done"],"activity statuses were hidden or reordered")
   let recentIds=(0..<5).map{"recent-\($0)"}
   let split=SessionMenuStore()
   check(split.ingest(data(nodes+recentIds.map{node($0,nil,[],"completed")},history:recentIds),at:1000),"split fixture decode")
@@ -132,24 +117,21 @@ import Cocoa
   collapse!.performClick(nil)
   check(content.visibleRows.compactMap(\.sessionId)==["parent"],"sticky collapse did not close descendants")
   check(content.scrollView.contentView.bounds.minY<64,"collapse left the viewport below its sole remaining root")
-  let persisted=SessionMenuViewController(availableSize:NSSize(width:420,height:600),directory:directory.path)
-  persisted.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
-  let persistedRead=descendants(persisted.view).compactMap{$0 as? NSButton}.first{$0.title=="一键已读"}!
-  persistedRead.performClick(nil)
-  let restored=SessionMenuViewController(availableSize:NSSize(width:420,height:600),directory:directory.path)
+  func oldFingerprint(_ id:String,_ state:String)->String {SHA256.hash(data:Data((id+"|legacy:1000.0|"+state).utf8)).map{String(format:"%02x",$0)}.joined()}
+  let legacyFile=directory.appendingPathComponent("session-menu-read.json")
+  let legacyData=try JSONSerialization.data(withJSONObject:["generation":generation,"read":["done":oldFingerprint("done","completed"),"failure":oldFingerprint("failure","error")]])
+  try legacyData.write(to:legacyFile)
+  let restarted=SessionMenuController(directory:directory.path,openSession:{_,_ in},openDesktop:{false})
+  let restored=restarted.content
   restored.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
-  check(restored.visibleRows.compactMap(\.sessionId)==["question","live"],"helper restart lost read acknowledgments")
+  check(restored.visibleRows.compactMap(\.sessionId)==["failure","question","live","done"],"legacy read marks still hide activity after restart")
+  check(restored.historyList.rows.compactMap(\.sessionId).isEmpty,"legacy read marks inserted activity into recent history")
   let disabledStore=SessionMenuStore()
   check(disabledStore.ingest(data([],active:[],revision:3,enabled:false),at:1000),"disabled snapshot decode")
   restored.update(snapshot:disabledStore.snapshot,status:"DSH 已连接",stale:false,error:nil)
   restored.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
-  check(restored.visibleRows.compactMap(\.sessionId)==["question","live"],"temporary menu disable erased read acknowledgments")
-  let restartUndo=descendants(restored.view).compactMap{$0 as? NSButton}.first{$0.title=="取消已读"}
-  check(restartUndo != nil,"helper restart discarded the undo batch while retaining hidden read entries")
-  restartUndo!.performClick(nil)
-  check(restored.visibleRows.compactMap(\.sessionId)==["failure","question","live","done"],"restored undo cannot reveal its acknowledged entries")
-  let permission=try FileManager.default.attributesOfItem(atPath:directory.appendingPathComponent("session-menu-read.json").path)[.posixPermissions] as! NSNumber
-  check(permission.intValue==0o600,"read state is not private")
+  check(restored.visibleRows.compactMap(\.sessionId)==["failure","question","live","done"],"menu enable cycle concealed activity")
+  check(try Data(contentsOf:legacyFile)==legacyData,"obsolete private read state was rewritten")
   if let target=ProcessInfo.processInfo.environment["DSH_MENU_PREVIEW"] {
    content.view.appearance=NSAppearance(named:.darkAqua)
    content.view.layoutSubtreeIfNeeded()
@@ -157,6 +139,67 @@ import Cocoa
    content.view.cacheDisplay(in:content.view.bounds,to:bitmap)
    try bitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:target))
   }
-  print("PASS native menu decode/bounds/stale/recovery, 400-child layout/scroll, deep tree, keyboard/accessibility, real progress and enabled lifecycle")
+  let sections=SessionMenuViewController(availableSize:NSSize(width:420,height:600))
+  sections.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  sections.toggle("parent")
+  let sectionWindow=NSWindow(contentRect:sections.view.frame,styleMask:[],backing:.buffered,defer:false)
+  sectionWindow.contentViewController=sections;sections.view.layoutSubtreeIfNeeded()
+  func sectionButton(_ label:String)->NSButton? {descendants(sections.view).compactMap{$0 as? NSButton}.first{!$0.isHidden && $0.accessibilityLabel()==label}}
+  check(sectionButton("展开活动会话") != nil && sectionButton("展开最近会话") != nil,"overflow sections lack expansion controls")
+  let wheel=NSEvent(cgEvent:CGEvent(scrollWheelEvent2Source:nil,units:.pixel,wheelCount:1,wheel1:-160,wheel2:0,wheel3:0)!)!
+  let fixedOrigin=sections.activeList.scrollView.contentView.bounds.origin
+  sections.activeList.scrollView.scrollWheel(with:wheel)
+  sections.activeList.table.scrollWheel(with:wheel)
+  check(sections.activeList.scrollView.contentView.bounds.origin==fixedOrigin,"wheel still moves the fixed session panel")
+  var resized:NSSize?
+  sections.onResize={resized=$0}
+  let collapsedActivity=sections.activeList.frame.height,collapsedHistory=sections.historyList.frame.height,collapsedPanel=sections.view.frame.height
+  sectionButton("展开活动会话")!.performClick(nil)
+  check(sections.activeList.frame.height>collapsedActivity && sections.view.frame.height>collapsedPanel,"activity expansion did not increase its viewport")
+  check(sections.historyList.frame.height==collapsedHistory,"activity expansion changed the collapsed history viewport")
+  check(resized==sections.view.frame.size,"expanded size did not reach the popover callback")
+  check(sectionButton("收起活动会话") != nil && sections.view.frame.height<=600,"expanded activity cannot collapse or exceeds screen bounds")
+  let expandedActivity=sections.activeList.frame.height
+  check(sectionButton("向下查看活动会话")?.isEnabled==true,"screen-bounded tree has no arrow to reach further children")
+  var steps=0
+  while let next=sectionButton("向下查看活动会话"),next.isEnabled,steps<500 {next.performClick(nil);steps+=1}
+  let end=sections.activeList.scrollView.contentView.bounds
+  check(end.maxY>=sections.activeList.naturalHeight-1 && steps>0 && steps<500,"arrow navigation cannot reach the last child")
+  check(sections.activeList.stickyRootId=="parent" && sectionButton("向上查看活动会话")?.isEnabled==true,"arrow navigation lost the root or return control")
+  let endOrigin=end.origin
+  sections.activeList.table.scrollWheel(with:wheel);sections.activeList.scrollView.scrollWheel(with:wheel)
+  check(sections.activeList.scrollView.contentView.bounds.origin==endOrigin,"expanded panel still responds to the wheel")
+  sections.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  check(sections.activeList.frame.height==expandedActivity && sections.activeList.scrollView.contentView.bounds.origin==endOrigin,"ordinary refresh resets expansion or arrow position")
+  sectionButton("向上查看活动会话")!.performClick(nil)
+  check(sections.activeList.scrollView.contentView.bounds.minY<end.minY,"up arrow did not return to previous children")
+  sectionButton("收起活动会话")!.performClick(nil)
+  check(sections.activeList.frame.height==collapsedActivity,"activity collapse did not restore compact height")
+  check(sections.activeList.scrollView.contentView.bounds.minY==0,"section collapse did not reset the fixed viewport")
+  sectionButton("展开最近会话")!.performClick(nil)
+  check(sections.historyList.frame.height>collapsedHistory && sections.activeList.frame.height==collapsedActivity,"history expansion failed or changed activity viewport")
+  check(!sections.activeList.scrollView.hasVerticalScroller && !sections.historyList.scrollView.hasVerticalScroller,"a section retained a scrollbar")
+  sectionButton("展开活动会话")!.performClick(nil)
+  check(sections.view.frame.height<=600 && sections.activeList.frame.height.truncatingRemainder(dividingBy:64)==0 && sections.historyList.frame.height.truncatingRemainder(dividingBy:64)==0,"two expanded sections exceed bounds or cut a row")
+  sections.activeList.table.scrollRowToVisible(sections.activeList.rows.count-1)
+  check(sections.activeList.table.rows(in:sections.activeList.scrollView.contentView.bounds).contains(sections.activeList.rows.count-1),"bounded expanded tree lost its last child")
+  let shortScreen=SessionMenuViewController(availableSize:NSSize(width:300,height:400))
+  shortScreen.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil);shortScreen.toggle("parent")
+  let shortWindow=NSWindow(contentRect:shortScreen.view.frame,styleMask:[],backing:.buffered,defer:false)
+  shortWindow.contentViewController=shortScreen;shortScreen.view.layoutSubtreeIfNeeded()
+  let shortActivity=shortScreen.activeList.frame.height,shortHistory=shortScreen.historyList.frame.height
+  func shortButton(_ label:String)->NSButton? {descendants(shortScreen.view).compactMap{$0 as? NSButton}.first{!$0.isHidden && $0.accessibilityLabel()==label}}
+  shortButton("展开活动会话")!.performClick(nil)
+  check(shortScreen.activeList.frame.height>=shortActivity && shortScreen.historyList.frame.height==shortHistory,"small-screen expansion shrank activity or enlarged collapsed history")
+  shortButton("向下查看活动会话")!.performClick(nil)
+  let shortClip=shortScreen.activeList.scrollView.contentView.bounds
+  check((0..<shortScreen.activeList.rows.count).contains{index in let rect=shortScreen.activeList.table.rect(ofRow:index);return shortScreen.activeList.rows[index].depth>0 && rect.minY>=shortClip.minY+64 && rect.maxY<=shortClip.maxY},"sticky root covers every child on a short screen")
+  shortButton("展开最近会话")!.performClick(nil)
+  check(shortScreen.activeList.frame.height>=shortActivity && shortScreen.historyList.frame.height>=shortHistory && shortScreen.view.frame.height<=400,"two-section expansion shrinks compact rows or exceeds short screen")
+  let few=SessionMenuStore();check(few.ingest(data([node("one"),node("recent",nil,[],"completed")],active:["one"],history:["recent"]),at:1000),"short section fixture decode")
+  sections.update(snapshot:few.snapshot,status:"DSH 已连接",stale:false,error:nil);sections.view.layoutSubtreeIfNeeded()
+  check(sectionButton("展开活动会话")==nil && sectionButton("展开最近会话")==nil && sectionButton("收起最近会话")==nil,"short sections retain useless expansion controls")
+  check(sections.activeList.table.frame.height<=sections.activeList.scrollView.contentView.bounds.height+1,"fitting rows retain phantom scrollable space")
+  print("PASS native menu decode/bounds/stale/recovery, 400-child arrow navigation, fixed wheel, deep tree, keyboard/accessibility, real progress, section expansion and enabled lifecycle")
  }
 }

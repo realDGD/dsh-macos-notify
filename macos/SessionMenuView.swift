@@ -61,9 +61,9 @@ final class SessionMenuRowView:NSTableCellView {
   configureActions()
   let textEnd=node.progress==nil ? trailingAnchor:progress.leadingAnchor
   NSLayoutConstraint.activate([
-   disclosure.leadingAnchor.constraint(equalTo:leadingAnchor,constant:4+offset),disclosure.widthAnchor.constraint(equalToConstant:disclosureWidth),disclosure.topAnchor.constraint(equalTo:topAnchor,constant:5),disclosure.heightAnchor.constraint(equalToConstant:32),
-   dot.leadingAnchor.constraint(equalTo:disclosure.trailingAnchor,constant:disclosureWidth==0 ? 0:2),dot.widthAnchor.constraint(equalToConstant:8),dot.heightAnchor.constraint(equalToConstant:8),dot.centerYAnchor.constraint(equalTo:centerYAnchor),
-   title.leadingAnchor.constraint(equalTo:dot.trailingAnchor,constant:6),title.trailingAnchor.constraint(equalTo:textEnd,constant:-6),title.topAnchor.constraint(equalTo:topAnchor,constant:5),title.heightAnchor.constraint(equalToConstant:17),
+   dot.leadingAnchor.constraint(equalTo:leadingAnchor,constant:6+offset),dot.widthAnchor.constraint(equalToConstant:8),dot.heightAnchor.constraint(equalToConstant:8),dot.centerYAnchor.constraint(equalTo:centerYAnchor),
+   disclosure.leadingAnchor.constraint(equalTo:leadingAnchor,constant:20+offset),disclosure.widthAnchor.constraint(equalToConstant:disclosureWidth),disclosure.topAnchor.constraint(equalTo:topAnchor,constant:5),disclosure.heightAnchor.constraint(equalToConstant:32),
+   title.leadingAnchor.constraint(equalTo:disclosure.trailingAnchor,constant:disclosureWidth==0 ? 0:6),title.trailingAnchor.constraint(equalTo:textEnd,constant:-6),title.topAnchor.constraint(equalTo:topAnchor,constant:5),title.heightAnchor.constraint(equalToConstant:17),
    preview.leadingAnchor.constraint(equalTo:title.leadingAnchor),preview.trailingAnchor.constraint(equalTo:textEnd,constant:-6),preview.topAnchor.constraint(equalTo:title.bottomAnchor,constant:2),preview.heightAnchor.constraint(equalToConstant:16),
    status.leadingAnchor.constraint(equalTo:title.leadingAnchor),status.trailingAnchor.constraint(equalTo:textEnd,constant:-6),status.topAnchor.constraint(equalTo:preview.bottomAnchor,constant:2),status.heightAnchor.constraint(equalToConstant:14),
    progress.trailingAnchor.constraint(equalTo:trailingAnchor,constant:-6),progress.widthAnchor.constraint(equalToConstant:40),progress.centerYAnchor.constraint(equalTo:centerYAnchor),progress.heightAnchor.constraint(equalToConstant:40)])
@@ -118,6 +118,40 @@ private final class MenuActionTarget:NSObject {
 final class MenuTableView:NSTableView {
  var keyHandler:((UInt16)->Bool)?
  override func keyDown(with event:NSEvent){if keyHandler?(event.keyCode) != true {super.keyDown(with:event)}}
+ override func scrollWheel(with event:NSEvent) {}
+}
+private final class MenuSectionControls:NSView {
+ private let more=NSButton(),previous=NSButton(),next=NSButton()
+ private let section:String
+ var onExpand:(()->Void)?,onStep:((Int)->Void)?
+ init(_ section:String) {
+  self.section=section;super.init(frame:.zero)
+  for button in [more,previous,next] {
+   button.translatesAutoresizingMaskIntoConstraints=false;button.isBordered=false;button.contentTintColor = .secondaryLabelColor;button.target=self;addSubview(button)
+  }
+  more.action=#selector(expand);previous.action=#selector(up);next.action=#selector(down)
+  previous.image=NSImage(systemSymbolName:"chevron.up",accessibilityDescription:nil);next.image=NSImage(systemSymbolName:"chevron.down",accessibilityDescription:nil)
+  previous.setAccessibilityLabel("向上查看"+section);next.setAccessibilityLabel("向下查看"+section)
+  previous.toolTip="查看上面的会话";next.toolTip="查看更多会话"
+  more.font = .systemFont(ofSize:10)
+  NSLayoutConstraint.activate([
+   more.centerXAnchor.constraint(equalTo:centerXAnchor),more.widthAnchor.constraint(equalToConstant:80),more.topAnchor.constraint(equalTo:topAnchor),more.bottomAnchor.constraint(equalTo:bottomAnchor),
+   previous.leadingAnchor.constraint(equalTo:leadingAnchor,constant:14),previous.widthAnchor.constraint(equalToConstant:32),previous.topAnchor.constraint(equalTo:topAnchor),previous.bottomAnchor.constraint(equalTo:bottomAnchor),
+   next.trailingAnchor.constraint(equalTo:trailingAnchor,constant:-14),next.widthAnchor.constraint(equalToConstant:32),next.topAnchor.constraint(equalTo:topAnchor),next.bottomAnchor.constraint(equalTo:bottomAnchor)])
+ }
+ required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
+ func update(needed:Bool,expanded:Bool,list:MenuSessionList) {
+  isHidden = !needed;more.isHidden = !needed
+  let navigation=expanded && (list.canMoveUp || list.canMoveDown)
+  previous.isHidden = !navigation;next.isHidden = !navigation
+  previous.isEnabled=list.canMoveUp;next.isEnabled=list.canMoveDown
+  more.image=NSImage(systemSymbolName:expanded ? "chevron.up":"chevron.down",accessibilityDescription:nil)
+  more.title=navigation ? "收起":"";more.imagePosition=navigation ? .imageLeft:.imageOnly
+  more.setAccessibilityLabel((expanded ? "收起":"展开")+section);more.toolTip=(expanded ? "收起":"展开更多")+section
+ }
+ @objc private func expand(){onExpand?()}
+ @objc private func up(){onStep?(-1)}
+ @objc private func down(){onStep?(1)}
 }
 final class SessionMenuViewController:NSViewController {
  let activeList=MenuSessionList(frame:.zero),historyList=MenuSessionList(frame:.zero)
@@ -126,14 +160,16 @@ final class SessionMenuViewController:NSViewController {
  var visibleRows:[MenuVisibleRow] {activeList.rows}
  var onOpenSession:((String)->Void)?,onDisableMenu:(()->Void)?,onOpenDesktop:(()->Void)?,onClose:(()->Void)?
  var onInteraction:((MenuInteraction,MenuInteractionAction)->Void)?
+ var onResize:((NSSize)->Void)?
  private let connection=NSTextField(labelWithString:""),errorLabel=NSTextField(labelWithString:""),footer=NSTextField(labelWithString:"")
- private let readButton=NSButton(title:"一键已读",target:nil,action:nil),filter=NSPopUpButton(frame:.zero,pullsDown:false)
- private let activityState:MenuActivityState
+ private let activeMore=MenuSectionControls("活动会话"),historyMore=MenuSectionControls("最近会话")
+ private var activityExpanded=false,historyExpanded=false
  private var snapshot:MenuSnapshot?,nodes:[String:MenuNode]=[:],expanded=Set<String>(),stale=false
  private let availableSize:NSSize
  private var activeHeight:NSLayoutConstraint!,historyHeight:NSLayoutConstraint!
+ private var activeMoreHeight:NSLayoutConstraint!,historyMoreHeight:NSLayoutConstraint!
  private var errorHeight:NSLayoutConstraint!,errorSpacing:NSLayoutConstraint!,footerHeight:NSLayoutConstraint!,footerSpacing:NSLayoutConstraint!
- init(availableSize:NSSize,directory:String?=nil){self.availableSize=availableSize;activityState=MenuActivityState(directory:directory);super.init(nibName:nil,bundle:nil);loadView()}
+ init(availableSize:NSSize){self.availableSize=availableSize;super.init(nibName:nil,bundle:nil);loadView()}
  required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
  override func loadView() {
   view=NSView(frame:NSRect(x:0,y:0,width:min(420,availableSize.width),height:min(280,availableSize.height)))
@@ -146,9 +182,9 @@ final class SessionMenuViewController:NSViewController {
   errorLabel.font = .systemFont(ofSize:11);errorLabel.textColor = .systemRed;errorLabel.maximumNumberOfLines=2
   footer.font = .systemFont(ofSize:10);footer.textColor = .secondaryLabelColor;footer.maximumNumberOfLines=1
   for label in [connection,errorLabel,footer]{label.lineBreakMode = .byTruncatingTail}
-  readButton.font = .systemFont(ofSize:10);readButton.bezelStyle = .rounded;readButton.target=self;readButton.action=#selector(toggleRead)
-  filter.addItems(withTitles:["全部","只看报错","只看活动中"]);filter.font = .systemFont(ofSize:10);filter.target=self;filter.action=#selector(filterChanged)
-  filter.setAccessibilityLabel("活动会话筛选")
+  activeMore.onExpand={[weak self] in self?.toggleActivityExpansion()};historyMore.onExpand={[weak self] in self?.toggleHistoryExpansion()}
+  activeMore.onStep={[weak self] direction in self?.activeList.move(direction)};historyMore.onStep={[weak self] direction in self?.historyList.move(direction)}
+  activeList.onViewportChange={[weak self] in self?.refreshSectionControls()};historyList.onViewportChange={[weak self] in self?.refreshSectionControls()}
   divider.boxType = .separator
   for list in [activeList,historyList] {
    list.onOpen={[weak self] id in self?.onOpenSession?(id)};list.onToggle={[weak self] id in self?.toggle(id)}
@@ -156,27 +192,27 @@ final class SessionMenuViewController:NSViewController {
    list.table.keyHandler={[weak self,weak list] key in guard let list=list else{return false};return self?.handleKey(key,list:list) ?? false}
   }
   activeList.table.setAccessibilityLabel("活动会话列表");historyList.table.setAccessibilityLabel("最近会话列表")
-  for child in [heading,gear,connection,activityHeading,readButton,filter,activeList,divider,historyHeading,historyList,errorLabel,footer]{child.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(child)}
+  for child in [heading,gear,connection,activityHeading,activeList,activeMore,divider,historyHeading,historyList,historyMore,errorLabel,footer]{child.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(child)}
   activeHeight=activeList.heightAnchor.constraint(equalToConstant:64);historyHeight=historyList.heightAnchor.constraint(equalToConstant:64)
-  errorHeight=errorLabel.heightAnchor.constraint(equalToConstant:0);errorSpacing=errorLabel.topAnchor.constraint(equalTo:historyList.bottomAnchor)
+  activeMoreHeight=activeMore.heightAnchor.constraint(equalToConstant:0);historyMoreHeight=historyMore.heightAnchor.constraint(equalToConstant:0)
+  errorHeight=errorLabel.heightAnchor.constraint(equalToConstant:0);errorSpacing=errorLabel.topAnchor.constraint(equalTo:historyMore.bottomAnchor)
   footerHeight=footer.heightAnchor.constraint(equalToConstant:0);footerSpacing=footer.topAnchor.constraint(equalTo:errorLabel.bottomAnchor)
   NSLayoutConstraint.activate([
    heading.leadingAnchor.constraint(equalTo:view.leadingAnchor,constant:14),heading.topAnchor.constraint(equalTo:view.topAnchor,constant:12),heading.heightAnchor.constraint(equalToConstant:20),
    gear.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-10),gear.topAnchor.constraint(equalTo:view.topAnchor,constant:8),gear.widthAnchor.constraint(equalToConstant:26),gear.heightAnchor.constraint(equalToConstant:26),
    connection.leadingAnchor.constraint(equalTo:heading.trailingAnchor,constant:9),connection.trailingAnchor.constraint(lessThanOrEqualTo:gear.leadingAnchor,constant:-4),connection.centerYAnchor.constraint(equalTo:heading.centerYAnchor),
    activityHeading.leadingAnchor.constraint(equalTo:heading.leadingAnchor),activityHeading.topAnchor.constraint(equalTo:heading.bottomAnchor,constant:12),activityHeading.heightAnchor.constraint(equalToConstant:22),
-   filter.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-12),filter.centerYAnchor.constraint(equalTo:activityHeading.centerYAnchor),filter.widthAnchor.constraint(equalToConstant:100),
-   readButton.trailingAnchor.constraint(equalTo:filter.leadingAnchor,constant:-4),readButton.centerYAnchor.constraint(equalTo:activityHeading.centerYAnchor),readButton.widthAnchor.constraint(equalToConstant:76),
    activeList.leadingAnchor.constraint(equalTo:view.leadingAnchor,constant:6),activeList.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-6),activeList.topAnchor.constraint(equalTo:activityHeading.bottomAnchor,constant:4),activeHeight,
-   divider.leadingAnchor.constraint(equalTo:heading.leadingAnchor),divider.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-14),divider.topAnchor.constraint(equalTo:activeList.bottomAnchor,constant:8),divider.heightAnchor.constraint(equalToConstant:1),
+   activeMore.leadingAnchor.constraint(equalTo:activeList.leadingAnchor),activeMore.trailingAnchor.constraint(equalTo:activeList.trailingAnchor),activeMore.topAnchor.constraint(equalTo:activeList.bottomAnchor),activeMoreHeight,
+   divider.leadingAnchor.constraint(equalTo:heading.leadingAnchor),divider.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-14),divider.topAnchor.constraint(equalTo:activeMore.bottomAnchor,constant:8),divider.heightAnchor.constraint(equalToConstant:1),
    historyHeading.leadingAnchor.constraint(equalTo:heading.leadingAnchor),historyHeading.topAnchor.constraint(equalTo:divider.bottomAnchor,constant:7),historyHeading.heightAnchor.constraint(equalToConstant:20),
    historyList.leadingAnchor.constraint(equalTo:activeList.leadingAnchor),historyList.trailingAnchor.constraint(equalTo:activeList.trailingAnchor),historyList.topAnchor.constraint(equalTo:historyHeading.bottomAnchor,constant:3),historyHeight,
+   historyMore.leadingAnchor.constraint(equalTo:historyList.leadingAnchor),historyMore.trailingAnchor.constraint(equalTo:historyList.trailingAnchor),historyMore.topAnchor.constraint(equalTo:historyList.bottomAnchor),historyMoreHeight,
    errorLabel.leadingAnchor.constraint(equalTo:heading.leadingAnchor),errorLabel.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-12),errorSpacing,errorHeight,
    footer.leadingAnchor.constraint(equalTo:heading.leadingAnchor),footer.trailingAnchor.constraint(equalTo:errorLabel.trailingAnchor),footerSpacing,footer.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-8),footerHeight])
  }
  func update(snapshot:MenuSnapshot?,status:String,stale:Bool,error:String?,interactions:[MenuInteraction]=[]) {
   self.snapshot=snapshot;self.stale=stale;nodes=Dictionary(uniqueKeysWithValues:(snapshot?.nodes ?? []).map{($0.id,$0)})
-  activityState.update(snapshot)
   let grouped=Dictionary(grouping:interactions,by:{$0.sessionId})
   activeList.interactions=grouped;historyList.interactions=grouped
   expanded.formIntersection(Set(nodes.keys))
@@ -189,28 +225,54 @@ final class SessionMenuViewController:NSViewController {
  }
  private func rebuild() {
   let ids=(snapshot?.activeIds ?? [])+(snapshot?.orphanIds ?? [])
-  let active=ids.filter{activityState.includes($0,nodes:nodes)}
-  let readHistory=(snapshot?.activeIds ?? []).filter{activityState.isRead($0,nodes:nodes)}
-  let recent=Array(Set((snapshot?.historyIds ?? [])+readHistory)).sorted{a,b in
-   let ta=nodes[a]?.updatedAt ?? 0,tb=nodes[b]?.updatedAt ?? 0;return ta==tb ? a<b:ta>tb
-  }
-  activeList.update(ids:active,nodes:nodes,expanded:expanded,stale:stale,empty:snapshot?.availability=="loading" ? "正在加载会话…":activityState.filter == .all ? "暂无本次连接的活动会话":"没有符合筛选的活动会话")
-  historyList.update(ids:Array(recent.prefix(5)),nodes:nodes,expanded:expanded,stale:stale,empty:"暂无最近会话")
-  readButton.title=activityState.canUndo ? "取消已读":"一键已读"
-  readButton.isEnabled=activityState.canUndo || ids.contains{id in !activityState.isRead(id,nodes:nodes) && !activityState.branch(id,nodes:nodes).contains{$0.state.isLive}}
+  activeList.update(ids:ids,nodes:nodes,expanded:expanded,stale:stale,empty:snapshot?.availability=="loading" ? "正在加载会话…":"暂无本次连接的活动会话")
+  historyList.update(ids:Array((snapshot?.historyIds ?? []).prefix(5)),nodes:nodes,expanded:expanded,stale:stale,empty:"暂无最近会话")
   // Reserve space for both lists; neither must be reached by scrolling the other.
-  let overhead=117+errorSpacing.constant+errorHeight.constant+footerSpacing.constant+footerHeight.constant
-  let budget=max(0,min(600,availableSize.height)-overhead)
-  var a=min(activeList.naturalHeight,budget*0.62),h=min(historyList.naturalHeight,budget*0.38)
-  let spare=budget-a-h
-  if spare>0{a+=min(spare,max(0,activeList.naturalHeight-a));h=min(historyList.naturalHeight,budget-a)}
+  let base=117+errorSpacing.constant+errorHeight.constant+footerSpacing.constant+footerHeight.constant,limit:CGFloat=128
+  let desiredA=activityExpanded ? activeList.naturalHeight:min(activeList.naturalHeight,limit)
+  let desiredH=historyExpanded ? historyList.naturalHeight:min(historyList.naturalHeight,limit)
+  var aMore=activeList.naturalHeight>limit,hMore=historyList.naturalHeight>limit
+  func heights(_ overhead:CGFloat)->(CGFloat,CGFloat) {
+   let budget=max(0,min(600,availableSize.height)-overhead)
+   let compactA=min(activeList.naturalHeight,limit),compactH=min(historyList.naturalHeight,limit)
+   var a=min(compactA,budget*0.62),h=min(compactH,budget*0.38)
+   let spare=budget-a-h
+   if spare>0 {a+=min(spare,max(0,compactA-a));h=min(compactH,budget-a)}
+   // Never cut a session row in half at the viewport edge.
+   let aUnit:CGFloat=activeList.rows.contains(where:{$0.sessionId != nil}) ? 64:32
+   let hUnit:CGFloat=historyList.rows.contains(where:{$0.sessionId != nil}) ? 64:32
+   func fit(_ height:CGFloat,_ unit:CGFloat)->CGFloat {floor(height/unit)*unit}
+   a=fit(a,aUnit);h=fit(h,hUnit)
+   // Growth starts from the actual compact allocation. A section expansion must
+   // never enlarge the other collapsed section and shrink its own sticky tree.
+   if activityExpanded && !historyExpanded {a=fit(min(desiredA,budget-h),aUnit)}
+   else if historyExpanded && !activityExpanded {h=fit(min(desiredH,budget-a),hUnit)}
+   else if activityExpanded && historyExpanded {
+    let extra=budget-a-h
+    a=fit(min(desiredA,a+extra/2),aUnit);h=fit(min(desiredH,h+extra/2),hUnit)
+    a=fit(min(desiredA,budget-h),aUnit);h=fit(min(desiredH,budget-a),hUnit)
+   }
+   return (a,h)
+  }
+  var overhead=base+(aMore ? 24:0)+(hMore ? 24:0)
+  var (a,h)=heights(overhead)
+  aMore = aMore || (activeList.rows.contains{$0.sessionId != nil} && activeList.naturalHeight>a+1)
+  hMore = hMore || (historyList.rows.contains{$0.sessionId != nil} && historyList.naturalHeight>h+1)
+  overhead=base+(aMore ? 24:0)+(hMore ? 24:0);(a,h)=heights(overhead)
+  activeMoreHeight.constant=aMore ? 24:0;historyMoreHeight.constant=hMore ? 24:0
   activeHeight.constant=a;historyHeight.constant=h
   view.setFrameSize(NSSize(width:min(420,availableSize.width),height:min(availableSize.height,a+h+overhead)))
   view.layoutSubtreeIfNeeded();activeList.updateScrollChrome();historyList.updateScrollChrome();activeList.updateSticky();historyList.updateSticky()
+  onResize?(view.frame.size)
  }
+ private func refreshSectionControls() {
+  guard activeMoreHeight != nil else{return}
+  activeMore.update(needed:activeMoreHeight.constant>0,expanded:activityExpanded,list:activeList)
+  historyMore.update(needed:historyMoreHeight.constant>0,expanded:historyExpanded,list:historyList)
+ }
+ private func toggleActivityExpansion(){activityExpanded.toggle();rebuild();if !activityExpanded{activeList.resetViewport()}}
+ private func toggleHistoryExpansion(){historyExpanded.toggle();rebuild();if !historyExpanded{historyList.resetViewport()}}
  func toggle(_ id:String){guard nodes[id] != nil else{return};if expanded.contains(id){expanded.remove(id)}else{expanded.insert(id)};rebuild()}
- @objc private func toggleRead(){activityState.toggleRead(ids:(snapshot?.activeIds ?? [])+(snapshot?.orphanIds ?? []),nodes:nodes);rebuild()}
- @objc private func filterChanged(){activityState.filter=MenuActivityFilter(rawValue:filter.indexOfSelectedItem) ?? .all;rebuild()}
  @discardableResult func handleKey(_ key:UInt16,list:MenuSessionList?=nil)->Bool {
   let list=list ?? activeList,rows=list.rows,table=list.table
   if key==53{onClose?();return true}

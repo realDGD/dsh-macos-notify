@@ -154,6 +154,11 @@ import CryptoKit
   var resized:NSSize?
   sections.onResize={resized=$0}
   let collapsedActivity=sections.activeList.frame.height,collapsedHistory=sections.historyList.frame.height,collapsedPanel=sections.view.frame.height
+  let existingRoot=sections.activeList.table.view(atColumn:0,row:0,makeIfNecessary:true)
+  sectionButton("展开活动会话")!.performClick(nil)
+  check(sections.activeList.table.view(atColumn:0,row:0,makeIfNecessary:true)===existingRoot,"section expansion rebuilt unchanged visible rows")
+  sectionButton("收起活动会话")!.performClick(nil)
+  check(sections.activeList.table.view(atColumn:0,row:0,makeIfNecessary:true)===existingRoot,"section collapse rebuilt unchanged visible rows")
   sectionButton("展开活动会话")!.performClick(nil)
   check(sections.activeList.frame.height>collapsedActivity && sections.view.frame.height>collapsedPanel,"activity expansion did not increase its viewport")
   check(sections.historyList.frame.height==collapsedHistory,"activity expansion changed the collapsed history viewport")
@@ -176,7 +181,9 @@ import CryptoKit
   sectionButton("收起活动会话")!.performClick(nil)
   check(sections.activeList.frame.height==collapsedActivity,"activity collapse did not restore compact height")
   check(sections.activeList.scrollView.contentView.bounds.minY==0,"section collapse did not reset the fixed viewport")
+  let existingRecent=sections.historyList.table.view(atColumn:0,row:0,makeIfNecessary:true)
   sectionButton("展开最近会话")!.performClick(nil)
+  check(sections.historyList.table.view(atColumn:0,row:0,makeIfNecessary:true)===existingRecent,"history expansion rebuilt unchanged visible rows")
   check(sections.historyList.frame.height>collapsedHistory && sections.activeList.frame.height==collapsedActivity,"history expansion failed or changed activity viewport")
   check(!sections.activeList.scrollView.hasVerticalScroller && !sections.historyList.scrollView.hasVerticalScroller,"a section retained a scrollbar")
   sectionButton("展开活动会话")!.performClick(nil)

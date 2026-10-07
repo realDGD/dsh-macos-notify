@@ -2,13 +2,17 @@
 
 ## 0.5.0
 
+- Add the white fish.circle menu symbol with an independently colored ring, rotating fish and one-second pause. Track concurrent run batches before snapshot coalescing; acknowledge alerts on panel opening and ignore user cancellations.
+- Stack green Allow once and red Deny buttons vertically. Keep approval context in the notification's details entry and remove the redundant menu-row details button.
+- Pace the 0.26-second expansion with the display refresh rate and preserve transitions across unchanged Host heartbeats.
+
 - Follow DSH Desktop startup and exit instead of login startup. Retire and back up the old managed LaunchAgent; the Desktop plugin recovers a missing helper without creating duplicates or affecting CLI profiles.
 - Resize the popover before its content view so AppKit cannot restore the old outer size and clip expanded rows.
 - Animate section height with a short synchronized transition instead of the whole popover effect. Respect Reduce Motion, retain unchanged rows and sticky roots, and replace interrupted transitions from their current size.
 - Share four compact rows between activity and recent history: split evenly when both overflow and lend unused slots to the longer section. Show each section's disclosure only when more rows remain.
 - Avoid rebuilding session rows while the menu is closed or a request submenu is tracking. Multiple approvals include the command and numbered request labels.
 
-- Add per-session menu-bar Allow once, Deny, approval details and complete question-form actions. Multiple requests use explicitly bound entries; stale, submitting and already accepted requests cannot be submitted again.
+- Add per-session menu-bar Allow once, Deny and complete question-form actions. Multiple requests use explicitly bound entries; stale, submitting and already accepted requests cannot be submitted again.
 - Scope activity to runs observed or started during the current Host connection; retain their terminal results without importing old errors or dormant pins.
 - Distinguish official user/parent/hook/environment cancellation causes from failures, crash recovery and unknown legacy stops. Use 未分组 for sessions outside registered workspaces.
 - Show all connection-local activity without read acknowledgments or filters; ignore old private read marks.

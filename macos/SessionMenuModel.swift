@@ -3,10 +3,10 @@ enum MenuInteractionAction:String {
  case allow,deny,details,answer
  var title:String {switch self{case .allow:return "允许本次";case .deny:return "拒绝";case .details:return "查看详情";case .answer:return "打开完整问答"}}
 }
-struct MenuInteraction {
+struct MenuInteraction:Equatable {
  let requestId:String,sessionId:String,kind:String,title:String
  let canSubmit:Bool
- var actions:[MenuInteractionAction] {kind=="approval" ? [.allow,.deny,.details]:kind=="questions" ? [.answer]:[]}
+ var actions:[MenuInteractionAction] {kind=="approval" ? [.allow,.deny]:kind=="questions" ? [.answer]:[]}
  func enabled(_ action:MenuInteractionAction)->Bool {canSubmit || action == .details || action == .answer}
 }
 enum MenuSessionState:String,Codable,CaseIterable {
@@ -21,8 +21,8 @@ enum MenuSessionState:String,Codable,CaseIterable {
  var isLive:Bool {self == .running || self == .waitingQuestions || self == .waitingApproval}
  var isFailure:Bool {self == .error || self == .interrupted || self == .maxTokens}
 }
-struct MenuProgress:Codable {let completed:Int;let total:Int}
-struct MenuNode:Codable {
+struct MenuProgress:Codable,Equatable {let completed:Int;let total:Int}
+struct MenuNode:Codable,Equatable {
  let id:String;let parentId:String?;let workspaceTitle:String;let sessionTitle:String;let state:MenuSessionState
  let preview:String;let previewKind:String;let pinned:Bool;let pinIndex:Int?;let progress:MenuProgress?
  let childIds:[String];let descendantBadge:String?;let updatedAt:Double
@@ -38,6 +38,7 @@ struct MenuNode:Codable {
 }
 struct MenuSnapshot:Codable {
  let version:Int;let generation:String;let revision:Int;let updatedAt:Double;let enabled:Bool;let availability:String
+ let cohort:MenuCohort?
  let nodes:[MenuNode];let activeIds:[String];let orphanIds:[String];let historyIds:[String];let omittedCount:Int
 }
 func menuSessionIdValid(_ id:String)->Bool {
@@ -67,6 +68,7 @@ final class SessionMenuStore {
   guard value.version==1,UUID(uuidString:value.generation) != nil,value.revision>=0,value.revision<=9007199254740991,
         value.updatedAt.isFinite,value.updatedAt>=0,value.updatedAt<=now+10000,["ready","loading","unavailable"].contains(value.availability),
         value.nodes.count<=2000,value.historyIds.count<=5,value.omittedCount>=0 else{return false}
+  if let cohort=value.cohort {guard cohort.id>=0,cohort.revision>=0,["white","yellow","red","green"].contains(cohort.tone) else{return false}}
   var byId:[String:MenuNode]=[:]
   for node in value.nodes {
    guard menuSessionIdValid(node.id),byId[node.id]==nil,node.title.unicodeScalars.count<=200,node.preview.unicodeScalars.count<=240,

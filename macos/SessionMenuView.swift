@@ -156,7 +156,7 @@ final class SessionMenuViewController:NSViewController {
   if key==125 || key==126 {
    let direction=key==125 ? 1:-1;index=index<0 ? (direction==1 ? -1:rows.count):index
    repeat{index+=direction}while index>=0 && index<rows.count && rows[index].sessionId==nil
-   if index>=0 && index<rows.count{table.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false);table.scrollRowToVisible(index)}
+   if index>=0 && index<rows.count,let id=rows[index].sessionId{list.select(id)}
    return true
   }
   guard index>=0,index<rows.count,let id=rows[index].sessionId,let node=nodes[id] else{return false}

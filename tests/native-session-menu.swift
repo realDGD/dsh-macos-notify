@@ -120,6 +120,10 @@ import Cocoa
   content.table.scrollRowToVisible(content.visibleRows.count-1);content.activeList.updateSticky();content.view.layoutSubtreeIfNeeded()
   check(content.historyList.scrollView.contentView.bounds.origin==historyOffset,"activity scrolling moved recent history")
   check(content.activeList.stickyRootId=="parent","expanded root scrolled away from its children")
+  content.table.selectRowIndexes(IndexSet(integer:content.visibleRows.count-1),byExtendingSelection:false)
+  for _ in 0..<20{content.handleKey(126)}
+  let selectedRect=content.table.rect(ofRow:content.table.selectedRow)
+  check(selectedRect.minY>=content.scrollView.contentView.bounds.minY+64,"keyboard selection is covered by the pinned root")
   let collapse=descendants(content.activeList).compactMap{$0 as? NSButton}.first{button in
    button.accessibilityLabel()=="收起会话 parent的子代理" && !button.isHidden && button.convert(button.bounds,to:content.activeList).intersects(content.activeList.bounds)
   }
@@ -134,6 +138,15 @@ import Cocoa
   let restored=SessionMenuViewController(availableSize:NSSize(width:420,height:600),directory:directory.path)
   restored.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
   check(restored.visibleRows.compactMap(\.sessionId)==["question","live"],"helper restart lost read acknowledgments")
+  let disabledStore=SessionMenuStore()
+  check(disabledStore.ingest(data([],active:[],revision:3,enabled:false),at:1000),"disabled snapshot decode")
+  restored.update(snapshot:disabledStore.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  restored.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  check(restored.visibleRows.compactMap(\.sessionId)==["question","live"],"temporary menu disable erased read acknowledgments")
+  let restartUndo=descendants(restored.view).compactMap{$0 as? NSButton}.first{$0.title=="取消已读"}
+  check(restartUndo != nil,"helper restart discarded the undo batch while retaining hidden read entries")
+  restartUndo!.performClick(nil)
+  check(restored.visibleRows.compactMap(\.sessionId)==["failure","question","live","done"],"restored undo cannot reveal its acknowledged entries")
   let permission=try FileManager.default.attributesOfItem(atPath:directory.appendingPathComponent("session-menu-read.json").path)[.posixPermissions] as! NSNumber
   check(permission.intValue==0o600,"read state is not private")
   if let target=ProcessInfo.processInfo.environment["DSH_MENU_PREVIEW"] {

@@ -11,16 +11,18 @@ final class MenuActivityState {
  var canUndo:Bool {undo != nil}
  init(directory:String?=nil) {
   file=directory.map{URL(fileURLWithPath:$0).appendingPathComponent("session-menu-read.json")}
-  if let file=file,let size=(try? FileManager.default.attributesOfItem(atPath:file.path)[.size]) as? Int,size<=524288,
+  if let file=file,let size=(try? FileManager.default.attributesOfItem(atPath:file.path)[.size]) as? Int,size<=2097152,
      let data=try? Data(contentsOf:file),let saved=try? JSONDecoder().decode(Saved.self,from:data),saved.read.count<=2000,
      UUID(uuidString:saved.generation) != nil,saved.read.allSatisfy({menuSessionIdValid($0.key)&&$0.value.count==64}) {
    generation=saved.generation;read=saved.read
+   if let batch=saved.undo,batch.count<=2000,batch.allSatisfy({read[$0.key]==$0.value}){undo=batch}
   }
  }
- private struct Saved:Codable {let generation:String;let read:[String:String]}
+ private struct Saved:Codable {let generation:String;let read:[String:String];let undo:[String:String]?}
  func update(_ snapshot:MenuSnapshot?) {
   guard let snapshot=snapshot else{return}
   if generation != snapshot.generation {generation=snapshot.generation;read=[:];undo=nil;save()}
+  guard snapshot.enabled,snapshot.availability=="ready" else{return}
   let ids=Set(snapshot.activeIds+snapshot.orphanIds+snapshot.historyIds)
   read=read.filter{ids.contains($0.key)}
  }
@@ -57,7 +59,7 @@ final class MenuActivityState {
   save()
  }
  private func save() {
-  guard let file=file,let generation=generation,let data=try? JSONEncoder().encode(Saved(generation:generation,read:read)),data.count<=524288 else{return}
+  guard let file=file,let generation=generation,let data=try? JSONEncoder().encode(Saved(generation:generation,read:read,undo:undo)),data.count<=2097152 else{return}
   do {
    try FileManager.default.createDirectory(at:file.deletingLastPathComponent(),withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
    try data.write(to:file,options:.atomic)

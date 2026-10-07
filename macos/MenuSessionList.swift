@@ -45,7 +45,14 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
  var naturalHeight:CGFloat {CGFloat(rows.reduce(0){$0+($1.sessionId==nil ? 32:64)})}
  func select(_ id:String) {
   guard let row=rows.firstIndex(where:{$0.sessionId==id}) else{return}
-  table.selectRowIndexes(IndexSet(integer:row),byExtendingSelection:false);table.scrollRowToVisible(row)
+  table.selectRowIndexes(IndexSet(integer:row),byExtendingSelection:false);reveal(row)
+ }
+ func reveal(_ row:Int) {
+  table.scrollRowToVisible(row);updateSticky()
+  let rect=table.rect(ofRow:row),clip=scrollView.contentView
+  if stickyRootId != nil,rect.minY<clip.bounds.minY+64 {
+   clip.scroll(to:NSPoint(x:0,y:max(0,rect.minY-64)));scrollView.reflectScrolledClipView(clip);updateSticky()
+  }
  }
  func updateSticky() {
   var root:String?

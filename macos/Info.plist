@@ -19,15 +19,15 @@
 	<key>CFBundleIconFile</key>
 	<string>icon.icns</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.1</string>
+	<string>0.4.0</string>
 	<key>CFBundleVersion</key>
-	<string>4</string>
+	<string>5</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 
-	<!-- agent 应用：没有 Dock 图标、没有菜单栏，只在后台等 pending.txt 并投递通知。 -->
+	<!-- agent 应用：没有 Dock 图标；可选菜单栏面板和后台通知使用同一个助手。 -->
 	<key>LSUIElement</key>
 	<true/>
 

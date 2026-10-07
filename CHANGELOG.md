@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Add an optional native menu-bar popover for active conversations, expandable nested subagents and five recent root conversations.
+- Use official workspace/session names and Pin order; prioritize pending input/approval, failures and runs. Preserve ancestor state when an active descendant promotes its branch.
+- Show one-line human input/current-turn formal answer, accessible state labels/colors and completed/total rings from actual todos. Ordinary user forks remain roots.
+- Reuse authenticated, acknowledged Desktop navigation, including official child-session addresses; closing the popover preserves independent question drafts.
+- Add a validated enable/disable setting, private bounded snapshots, loading/unavailable/stale indicators and lifecycle-owned discovery/refresh.
+- Include all Host/native sources in the source distribution; retain existing notification behavior, app identity and local icon handling.
+
 ## 0.3.1
 
 - Keep foreground quiet state per client window, expire inactive leases and ignore out-of-order presence packets. Focus changes and disposal release only that window’s lease.

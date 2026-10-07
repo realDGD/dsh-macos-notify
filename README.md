@@ -8,6 +8,7 @@ Native interactive macOS notifications for **DeepSeek Harness Desktop**. The DSH
 - One question reminder opens a scrollable multi-question form. Every question supports its original choices and independent multiline text input; submit the full batch once.
 - Soft-wrapped commands/parameters, session names, Markdown context with tables and LaTeX formulas, and Shell/JSON highlighting. Display formatting never changes submitted option labels or copied commands.
 - DSH remains the decision owner. The first accepted answer wins; answered/cancelled requests are withdrawn and stale buttons cannot repeat an action. Temporary disconnection preserves open drafts.
+- Optional native menu bar: prioritized active sessions, expandable subagents and the five most recent root conversations, with state labels and actual task progress.
 - Standalone completion/error producer, optional child-task summaries, per-kind switches, sound and current-session foreground quiet mode.
 - **DSH Settings → DSH Notify** shows connection/helper/permission/version status and a safe test-notification button. Test status distinguishes queueing, macOS acceptance, waiting for a click and confirmed Desktop session selection.
 
@@ -36,7 +37,7 @@ Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's C
 
 3. In DSH Desktop, open the left sidebar’s **Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
 
-   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.3.1`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
+   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.4.0`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
 
 4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it. The test status becomes confirmed only after Desktop verifies the target session; queueing or macOS acceptance alone does not prove a visible banner or successful navigation.
 
@@ -59,6 +60,16 @@ bash macos/uninstall.sh
 ```
 
 The installer removes only its owned helper and startup file. It retains preferences and application backups. Restart Desktop to unload the Host plugin. Unknown applications/startup entries are never overwritten or removed.
+
+## Session menu bar
+
+Click the DSH Notify menu-bar icon to open the native session panel. Each row shows `workspace · session name`, one line of the latest human input while active, or the latest formal answer from the completed turn. A subagent without human input uses its own task text. Normal user forks remain independent conversations.
+
+Official Pins come first, followed by requests waiting for input/approval and failures or involuntary interruption, then running sessions. The history section contains up to five recent eligible root conversations; subagents and pinned/activity rows do not consume those slots. Expand the disclosure arrow to inspect nested subagents. A waiting or pinned descendant promotes its ancestor branch while preserving the ancestor’s own state. Colors always have text labels. A ring counts completed/current task items for that row only; no plan means no ring.
+
+A row click closes the popover and uses verified Desktop session selection. Navigation failure is shown when you reopen the panel. Existing question-window drafts remain intact. Keyboard arrows navigate and expand/collapse; Return opens a session and Escape closes the panel. The panel scrolls and adapts to available screen space.
+
+Enable or disable it in **DSH Settings → DSH Notify → 菜单栏会话面板**. The panel’s gear can also disable it through the same validated setting. Notifications and question/approval windows keep working. To re-enable, use the existing DSH settings section. Initial discovery shows loading; a missing service shows unavailable, and an absent Host heartbeat marks retained data stale after six seconds. Snapshots are private, capped at 4 MiB/2,000 nodes, with an explicit omitted count when limited. History refreshes no more frequently than every 30 seconds. One active local Host/state namespace is supported.
 
 ## Privacy and behavior
 

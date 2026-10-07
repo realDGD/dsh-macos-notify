@@ -10,9 +10,9 @@ import CryptoKit
     "preview":String(repeating:"长中文🙂",count:35),"previewKind":"user","pinned":false,"pinIndex":NSNull(),
     "progress":progress as Any? ?? NSNull(),"childIds":children,"descendantBadge":NSNull(),"updatedAt":1000]
   }
-  func data(_ nodes:[[String:Any]],active:[String]=["parent"],revision:Int=1,updated:Double=1000,enabled:Bool=true,history:[String]=[])->Data {
+  func data(_ nodes:[[String:Any]],active:[String]=["parent"],revision:Int=1,updated:Double=1000,enabled:Bool=true,history:[String]=[],omitted:Int=0)->Data {
    try! JSONSerialization.data(withJSONObject:["version":1,"generation":generation,"revision":revision,"updatedAt":updated,"enabled":enabled,"availability":"ready",
-     "nodes":nodes,"activeIds":active,"orphanIds":[],"historyIds":history,"omittedCount":0])
+     "nodes":nodes,"activeIds":active,"orphanIds":[],"historyIds":history,"omittedCount":omitted])
   }
   let children=(0..<400).map{"child-\($0)"}
   let nodes=[node("parent",nil,children,"completed",["completed":3,"total":5])]+children.map{node($0,"parent")}
@@ -155,6 +155,15 @@ import CryptoKit
    check(labels.contains("展开活动会话")==Bool(aCount>aSlots),"activity disclosure threshold disagrees with allocated slots")
    check(labels.contains("展开最近会话")==Bool(hCount>hSlots),"history disclosure threshold disagrees with allocated slots")
   }
+  let constrainedStore=SessionMenuStore()
+  check(constrainedStore.ingest(data(["a1","a2","h1","h2"].map{node($0)},active:["a1","a2"],history:["h1","h2"],omitted:1),at:1000),"constrained disclosure fixture decode")
+  let constrained=SessionMenuViewController(availableSize:NSSize(width:420,height:400))
+  constrained.update(snapshot:constrainedStore.snapshot,status:"DSH 已连接",stale:false,error:"测试错误")
+  let constrainedWindow=NSWindow(contentRect:constrained.view.frame,styleMask:[],backing:.buffered,defer:false)
+  constrainedWindow.contentViewController=constrained;constrained.view.layoutSubtreeIfNeeded()
+  let constrainedLabels=Set(descendants(constrained.view).compactMap{$0 as? NSButton}.filter{!$0.isHiddenOrHasHiddenAncestor}.compactMap{$0.accessibilityLabel()})
+  check(constrained.activeList.frame.height==64 && constrained.historyList.frame.height==64 && constrained.view.frame.height<=400,"constrained panel cuts a row or exceeds the screen")
+  check(constrainedLabels.contains("展开活动会话") && constrainedLabels.contains("展开最近会话"),"final constrained heights conceal a session without its disclosure")
   let sections=SessionMenuViewController(availableSize:NSSize(width:420,height:600))
   sections.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil)
   sections.toggle("parent")

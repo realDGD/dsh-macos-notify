@@ -267,9 +267,14 @@ final class SessionMenuViewController:NSViewController {
   }
   var overhead=base+(aMore ? 24:0)+(hMore ? 24:0)
   var (a,h)=heights(overhead)
-  aMore = aMore || (activeList.rows.contains{$0.sessionId != nil} && activeList.naturalHeight>a+1)
-  hMore = hMore || (historyList.rows.contains{$0.sessionId != nil} && historyList.naturalHeight>h+1)
-  overhead=base+(aMore ? 24:0)+(hMore ? 24:0);(a,h)=heights(overhead)
+  // A new disclosure consumes space and may make the other list overflow.
+  // Each flag can only become true, so this settles after at most two additions.
+  while true {
+   let nextA=aMore || (aCount>0 && activeList.naturalHeight>a+1)
+   let nextH=hMore || (hCount>0 && historyList.naturalHeight>h+1)
+   if nextA==aMore && nextH==hMore{break}
+   aMore=nextA;hMore=nextH;overhead=base+(aMore ? 24:0)+(hMore ? 24:0);(a,h)=heights(overhead)
+  }
   activeMoreHeight.constant=aMore ? 24:0;historyMoreHeight.constant=hMore ? 24:0
   let startA=activeHeight.constant,startH=historyHeight.constant
   guard animate,view.window?.isVisible==true,!NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,

@@ -22,7 +22,7 @@ Prior implementation was verified on official Desktop 0.2.0-rc.2, macOS 27.0.1 /
 
 ## Operational limits
 
-The current helper coordinates one local active DSH profile/state namespace. Multiple simultaneous Hosts sharing it require separate state directories/helpers and are not certified here. Aggregation can only track descendant runs observed while the plugin is loaded. Result-unknown submissions never auto-retry. Notification previews and action availability depend on macOS settings and available banner space; default approval click always opens details.
+The current helper coordinates one local active DSH profile/state namespace. Multiple simultaneous Hosts sharing it require separate state directories/helpers and are not certified here. Aggregation can only track descendant runs observed while the plugin is loaded. Foreground leases expire after five seconds and retain sequence history for at most 128 client views; delayed packets from an evicted identity are outside that retained history. Result-unknown submissions never auto-retry. Notification previews and action availability depend on macOS settings and available banner space; default approval click always opens details.
 
 ## v0.2.0 distribution checks
 
@@ -37,3 +37,10 @@ The current helper coordinates one local active DSH profile/state namespace. Mul
 - Real native AppKit checks cover parameter formatting/original view/copy, large numbers/escapes/duplicate keys/leading combining characters, narrow-window command/parameter wrapping and existing question/navigation regressions.
 - Actual WebKit in the native question disclosure loads local fonts, renders tables and formulas, wraps long table cells, keeps a bounded scrollable context pane and blocks programmatic external navigation. The context renderer loads only when expanded.
 - This is component/layout evidence. Live visible-window and notification-click acceptance remain separate checks; older macOS/Intel real-device validation is still required.
+
+## v0.3.1 reminder and diagnostic checks
+
+- Regression tests cover concurrent client leases, out-of-order and expired presence, disposal, stale child generations, queue failure and exact test/session/request/timestamp-bound confirmation.
+- The native safe-test payload retains its identity through the notification callback. Delivery receipts contain only a validated test ID, coarse acceptance state and timestamp, use private permissions and retain at most 32 records.
+- A macOS accepted receipt means the system accepted the notification request. Actual display depends on system settings. Only a matching authenticated Desktop selection acknowledgement reports a confirmed test jump.
+- Live Desktop reload and notification-click acceptance remain separate from these source/component checks.

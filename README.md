@@ -9,7 +9,7 @@ Native interactive macOS notifications for **DeepSeek Harness Desktop**. The DSH
 - Soft-wrapped commands/parameters, session names, Markdown context with tables and LaTeX formulas, and Shell/JSON highlighting. Display formatting never changes submitted option labels or copied commands.
 - DSH remains the decision owner. The first accepted answer wins; answered/cancelled requests are withdrawn and stale buttons cannot repeat an action. Temporary disconnection preserves open drafts.
 - Standalone completion/error producer, optional child-task summaries, per-kind switches, sound and current-session foreground quiet mode.
-- **DSH Settings → DSH Notify** shows connection/helper/permission/version status and a safe test-notification button.
+- **DSH Settings → DSH Notify** shows connection/helper/permission/version status and a safe test-notification button. Test status distinguishes queueing, macOS acceptance, waiting for a click and confirmed Desktop session selection.
 
 This is a community plugin, not an official DeepSeek product. Currently verified with **DSH Desktop 0.2.0-rc.2**. See [compatibility and verification](docs/compatibility.md).
 
@@ -36,9 +36,9 @@ Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's C
 
 3. In DSH Desktop, open the left sidebar’s **Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
 
-   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.3.0`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
+   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.3.1`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
 
-4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it to confirm the expected session opens.
+4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it. The test status becomes confirmed only after Desktop verifies the target session; queueing or macOS acceptance alone does not prove a visible banner or successful navigation.
 
 For CLI installations the equivalent plugin step is `dsh plugin --profile <your-profile> add <path-to-checkout>`. Desktop users do not need to install another npm DSH executable. A versioned `.tgz` source package in GitHub Releases contains the same helper build/installation scripts.
 
@@ -66,7 +66,7 @@ No additional network listener, webhook, cloud service or model session is used.
 
 Quiet mode suppresses reminders only. Explicitly opened forms stay available, and it never approves/rejects or answers a request automatically. Turning off a notification type does not disable that underlying DSH interaction.
 
-Task aggregation waits for descendant runs observed by the active plugin. A newly started root turn cancels its old held completion. Aborted/interrupted/blocked turns are silent. Cold installation does not replay old idle sessions.
+Task aggregation waits for descendant runs observed by the active plugin. A newly started root turn cancels its old held completion. Aborted/interrupted/blocked turns are silent. Cold installation does not replay old idle sessions. Older turn events cannot end a newer child run, and background windows cannot clear another window’s foreground quiet state.
 
 ## Development
 

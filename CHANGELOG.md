@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1
+
+- Keep foreground quiet state per client window, expire inactive leases and ignore out-of-order presence packets. Focus changes and disposal release only that window’s lease.
+- Ignore stale child-turn ends, starts and errors so older events cannot flush or cancel a newer task summary.
+- Show safe test progress from queueing through macOS acceptance and actual matching Desktop session confirmation. Queue failure, rejection and timeout no longer imply success; old or unrelated receipts cannot confirm a new test.
+- Report plugin/helper version mismatch explicitly and keep diagnostic status limited to validated versions, coarse states and timestamps. Private receipt history is bounded.
+
 ## 0.3.0
 
 - Approval arguments default to indented JSON, with exact original view and copy controls. Formatting preserves key order, numbers and string escapes.

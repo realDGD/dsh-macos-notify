@@ -47,54 +47,6 @@ func logLine(_ message: String) {
 ///   title    = 事件类型（"✅ 任务完成"）—— 放最前，扫一眼就知道要不要现在处理
 ///   subtitle = 哪个会话（"dsh 通知功能咨询 · DSH"）
 ///   body     = 会话内容（最后一轮的回复摘要）
-struct Payload {
-    let url: String
-    let title: String
-    let subtitle: String
-    let body: String
-
-    static let defaultTitle = "DSH Harness"
-    static let defaultSubtitle = ""
-    static let defaultBody = "任务完成 — 点我回到会话"
-}
-
-/// 解析 pending.txt 内容。非法（含写了一半）返回 nil，调用方会等待重试。
-func parsePayload(_ raw: String) -> Payload? {
-    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
-
-    func isHttp(_ value: String) -> Bool {
-        value.hasPrefix("http://") || value.hasPrefix("https://")
-    }
-
-    /// 空串视为"没给"，回退到默认值。
-    func field(_ key: String, in object: [String: Any], fallback: String) -> String {
-        (object[key] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? fallback
-    }
-
-    if trimmed.hasPrefix("{") {
-        guard let data = trimmed.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let url = object["url"] as? String,
-              isHttp(url)
-        else { return nil }
-        return Payload(
-            url: url,
-            title: field("title", in: object, fallback: Payload.defaultTitle),
-            subtitle: field("subtitle", in: object, fallback: Payload.defaultSubtitle),
-            body: field("body", in: object, fallback: Payload.defaultBody)
-        )
-    }
-
-    guard isHttp(trimmed) else { return nil }
-    return Payload(
-        url: trimmed,
-        title: Payload.defaultTitle,
-        subtitle: Payload.defaultSubtitle,
-        body: Payload.defaultBody
-    )
-}
-
 // MARK: - 通知助手
 
 final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -238,13 +190,15 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
         content.body = payload.body
         content.sound = nativePreferences()["sound"] == false ? nil : .default
         content.userInfo = ["url": payload.url]
+        if let id = payload.testId { content.userInfo["testId"] = id }
 
         let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
+            identifier: payload.testId ?? UUID().uuidString,
             content: content,
             trigger: nil
         )
         UNUserNotificationCenter.current().add(request) { error in
+            if let id = payload.testId { recordTestDelivery(directory: stateDir, id: id, accepted: error == nil) }
             if let error = error {
                 logLine("post-failed \(error.localizedDescription)")
             } else {
@@ -304,7 +258,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
 
         // 让出一个 run loop 周期再动手，别和通知系统的收尾抢主线程。
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            self?.jump(to: url)
+            self?.jump(to: url, testId: info["testId"] as? String)
         }
     }
 
@@ -316,7 +270,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
     /// DSH 把"当前会话"持久化在 **localStorage**，而同源标签页**共享** localStorage ——
     /// 多个 DSH 标签页各自的跳转会互相覆盖这个键。实测症状：两条推送间隔过密时，
     /// 页面会退回"只显示工作区、不显示会话"。
-    private func jump(to url: URL) {
+    private func jump(to url: URL, testId: String? = nil) {
         // 交出助手自己的激活态（点通知时系统会把属主激活，而属主是零窗口 agent，
         // 没有任何窗口能接手 key 状态）。
         if NSApp.isActive {
@@ -325,14 +279,14 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
                 logLine("helper-deactivated (returned activation to the system)")
             }
         }
-        if openInDesktop(url) { return }
+        if openInDesktop(url, testId: testId) { return }
         if reuseDSHTab(url) { return }
         openInChrome(url)
     }
 
     /// Keep the clicked notification's own session ID, including old Web links.
     /// Desktop 0.2.0-rc.2 accepts only dsh://open; the plugin performs selection.
-    private func openInDesktop(_ url: URL, completion: ((String?) -> Void)? = nil) -> Bool {
+    private func openInDesktop(_ url: URL, testId: String? = nil, completion: ((String?) -> Void)? = nil) -> Bool {
         guard let host = url.host,
               ["127.0.0.1", "localhost", "::1", "[::1]"].contains(host),
               ["http", "https"].contains(url.scheme ?? ""),
@@ -344,10 +298,11 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
 
         let requestId = UUID().uuidString
         let createdAt = Date().timeIntervalSince1970 * 1000
-        let request: [String: Any] = [
+        var request: [String: Any] = [
             "requestId": requestId, "sessionId": id,
             "createdAt": createdAt,
         ]
+        if let testId = testId, UUID(uuidString: testId) != nil { request["testId"] = testId }
         do {
             try FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700])

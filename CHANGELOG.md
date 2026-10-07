@@ -6,6 +6,7 @@
 - Distinguish official user/parent/hook/environment cancellation causes from failures, crash recovery and unknown legacy stops. Use 未分组 for sessions outside registered workspaces.
 - Add activity filters and reversible bulk read acknowledgment; keep live sessions and required input visible, preserve private read marks across helper restarts and reveal new turns.
 - Separate activity and recent-history viewports, put connection status alongside the heading, keep expanded roots reachable and enlarge disclosure controls.
+- Remove unused disclosure spacing from root conversations without subagents while preserving nested tree alignment.
 - Put completed/total inside todo rings and use a green check when all todos finish. Preserve notification navigation, questions and approval behavior.
 
 ## 0.4.1

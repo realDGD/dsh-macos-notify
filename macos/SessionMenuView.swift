@@ -44,16 +44,18 @@ final class SessionMenuRowView:NSTableCellView {
    case .running:color = .systemBlue;case .completed:color = .systemGreen;default:color = .systemGray}
   dot.layer?.backgroundColor=color.cgColor
   disclosure.image=node.childIds.isEmpty ? nil:NSImage(systemSymbolName:expanded ? "chevron.down":"chevron.right",accessibilityDescription:nil)
+  disclosure.isHidden=node.childIds.isEmpty
   disclosure.contentTintColor = .labelColor;disclosure.isBordered=false;disclosure.isEnabled = !node.childIds.isEmpty
   disclosure.target=self;disclosure.action=#selector(toggle);disclosure.setAccessibilityLabel((expanded ? "收起":"展开")+node.sessionTitle+"的子代理")
   if let value=node.progress {progress.completed=value.completed;progress.total=value.total}
   progress.isHidden=node.progress==nil;progress.setAccessibilityLabel(node.progress.map{"任务 \($0.completed)/\($0.total)"})
   let offset=CGFloat(min(depth,8))*12
+  let disclosureWidth:CGFloat=node.childIds.isEmpty && depth==0 ? 0:28
   for child in [disclosure,dot,title,preview,status,progress] {child.translatesAutoresizingMaskIntoConstraints=false;addSubview(child)}
   let textEnd=node.progress==nil ? trailingAnchor:progress.leadingAnchor
   NSLayoutConstraint.activate([
-   disclosure.leadingAnchor.constraint(equalTo:leadingAnchor,constant:4+offset),disclosure.widthAnchor.constraint(equalToConstant:16),disclosure.topAnchor.constraint(equalTo:topAnchor,constant:5),disclosure.heightAnchor.constraint(equalToConstant:32),
-   dot.leadingAnchor.constraint(equalTo:disclosure.trailingAnchor,constant:2),dot.widthAnchor.constraint(equalToConstant:8),dot.heightAnchor.constraint(equalToConstant:8),dot.topAnchor.constraint(equalTo:topAnchor,constant:12),
+   disclosure.leadingAnchor.constraint(equalTo:leadingAnchor,constant:4+offset),disclosure.widthAnchor.constraint(equalToConstant:disclosureWidth),disclosure.topAnchor.constraint(equalTo:topAnchor,constant:5),disclosure.heightAnchor.constraint(equalToConstant:32),
+   dot.leadingAnchor.constraint(equalTo:disclosure.trailingAnchor,constant:disclosureWidth==0 ? 0:2),dot.widthAnchor.constraint(equalToConstant:8),dot.heightAnchor.constraint(equalToConstant:8),dot.topAnchor.constraint(equalTo:topAnchor,constant:12),
    title.leadingAnchor.constraint(equalTo:dot.trailingAnchor,constant:6),title.trailingAnchor.constraint(equalTo:textEnd,constant:-6),title.topAnchor.constraint(equalTo:topAnchor,constant:5),title.heightAnchor.constraint(equalToConstant:17),
    preview.leadingAnchor.constraint(equalTo:title.leadingAnchor),preview.trailingAnchor.constraint(equalTo:textEnd,constant:-6),preview.topAnchor.constraint(equalTo:title.bottomAnchor,constant:2),preview.heightAnchor.constraint(equalToConstant:16),
    status.leadingAnchor.constraint(equalTo:title.leadingAnchor),status.trailingAnchor.constraint(equalTo:textEnd,constant:-6),status.topAnchor.constraint(equalTo:preview.bottomAnchor,constant:2),status.heightAnchor.constraint(equalToConstant:14),

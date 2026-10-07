@@ -1,4 +1,14 @@
 import Foundation
+enum MenuInteractionAction:String {
+ case allow,deny,details,answer
+ var title:String {switch self{case .allow:return "允许本次";case .deny:return "拒绝";case .details:return "查看详情";case .answer:return "打开完整问答"}}
+}
+struct MenuInteraction {
+ let requestId:String,sessionId:String,kind:String,title:String
+ let canSubmit:Bool
+ var actions:[MenuInteractionAction] {kind=="approval" ? [.allow,.deny,.details]:kind=="questions" ? [.answer]:[]}
+ func enabled(_ action:MenuInteractionAction)->Bool {canSubmit || action == .details || action == .answer}
+}
 enum MenuSessionState:String,Codable,CaseIterable {
  case waitingQuestions="waiting-questions",waitingApproval="waiting-approval",error,interrupted,maxTokens="max-tokens",running,completed,stopped,paused,unknown
  case parentStopped="parent-stopped",hookStopped="hook-stopped",environmentStopped="environment-stopped",cancelled

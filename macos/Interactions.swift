@@ -587,9 +587,44 @@ final class NotificationInteractions {
     private var windows: [String: QuestionWindow] = [:]
     private var pendingCommands: [String: (NativeRequest, Date)] = [:]
     private var submitting = Set<String>()
-    private var center: UNUserNotificationCenter { .current() }
+    private var settled = Set<String>()
+    private let directory: String
+    private let centerOverride: UNUserNotificationCenter?
+    private let usesSystemCenter: Bool
+    private var center: UNUserNotificationCenter? { usesSystemCenter ? .current() : centerOverride }
+    init(directory: String = stateDir) {
+        self.directory = directory; self.centerOverride = nil; self.usesSystemCenter = true
+    }
+    init(directory: String, center: UNUserNotificationCenter?) {
+        self.directory = directory; self.centerOverride = center; self.usesSystemCenter = false
+    }
+    func menuInteractions() -> [MenuInteraction] {
+        active.values.filter { !settled.contains($0.id) && ["approval", "questions"].contains($0.kind) }.sorted { $0.id < $1.id }.map {
+            let title: String
+            if let approval = $0.approval {
+                title = approval.toolName + " · " + (approval.command ?? approval.reason ?? $0.body)
+            } else { title = $0.body.isEmpty ? $0.displayTitle : $0.body }
+            return MenuInteraction(requestId: $0.id, sessionId: $0.sessionId, kind: $0.kind,
+                title: String(title.split(whereSeparator: { $0.isNewline }).joined(separator: " ").prefix(100)),
+                canSubmit: !submitting.contains($0.id) && $0.phase != "transitioning")
+        }
+    }
+    func handleMenuInteraction(_ item: MenuInteraction, action: MenuInteractionAction) -> String? {
+        // Resolve the current request again. Menu cells may outlive a Host answer.
+        poll()
+        guard !settled.contains(item.requestId), let request = active[item.requestId], request.sessionId == item.sessionId,
+              request.kind == item.kind, item.actions.contains(action) else {
+            return "请求已回答或失效，请等待菜单刷新。"
+        }
+        if action == .allow || action == .deny {
+            guard !submitting.contains(request.id) else { return "此请求正在提交，请等待 DSH 确认。" }
+            guard request.phase != "transitioning" else { return "请求正在转入后台，请稍后重试。" }
+            return submit(request, answer: action == .allow ? "allowed-once" : "rejected")
+        } else { showQuestions(request) }
+        return nil
+    }
     func register() {
-        center.setNotificationCategories([
+        center?.setNotificationCategories([
             UNNotificationCategory(identifier: Self.categoryApproval, actions: [
                 UNNotificationAction(identifier: Self.allow, title: "允许本次 (Allow)", options: []),
                 UNNotificationAction(identifier: Self.deny, title: "拒绝 (Deny)", options: [.destructive]),
@@ -601,7 +636,7 @@ final class NotificationInteractions {
         ])
     }
     func poll() {
-        let path = (stateDir as NSString).appendingPathComponent("interactions.json")
+        let path = (self.directory as NSString).appendingPathComponent("interactions.json")
         var requests: [NativeRequest] = []
         var connected = false
         var preferences: [String: Bool] = [:]
@@ -619,8 +654,8 @@ final class NotificationInteractions {
         }
         let next = Dictionary(requests.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for id in Set(active.keys).union(windows.keys) where next[id] == nil {
-            center.removeDeliveredNotifications(withIdentifiers: ["interaction-" + id])
-            center.removePendingNotificationRequests(withIdentifiers: ["interaction-" + id])
+            center?.removeDeliveredNotifications(withIdentifiers: ["interaction-" + id])
+            center?.removePendingNotificationRequests(withIdentifiers: ["interaction-" + id])
             if !connected {
                 // Sleep/App Nap or transient I/O can age a snapshot without
                 // settling its request. Pause safely, retaining the draft.
@@ -629,6 +664,7 @@ final class NotificationInteractions {
             } else if !submitting.contains(id) { windows[id]?.finish("此请求已在 DSH 回答、取消或失效，无需再次提交。") }
         }
         active = next
+        settled.formIntersection(Set(next.keys))
         for request in requests {
             windows[request.id]?.setUnavailable(false)
             windows[request.id]?.setTransitioning(request.phase == "transitioning")
@@ -637,21 +673,22 @@ final class NotificationInteractions {
             if preferences[request.kind == "approval" ? "approval" : "questions"] != false && request.sessionId != quietSessionId { seen.insert(request.id); post(request) }
         }
         // Also clean notifications left by a previous helper process.
-        center.getDeliveredNotifications { [weak self] notices in
+        center?.getDeliveredNotifications { [weak self] notices in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 let ids = Set(self.active.keys.map { "interaction-" + $0 })
                 let expired = notices.map { $0.request.identifier }.filter { $0.hasPrefix("interaction-") && !ids.contains($0) }
-                self.center.removeDeliveredNotifications(withIdentifiers: expired)
+                self.center?.removeDeliveredNotifications(withIdentifiers: expired)
             }
         }
         for (commandId, (request, started)) in pendingCommands {
             let requestId = request.id
-            let resultPath = (stateDir as NSString).appendingPathComponent("results/\(commandId).json")
+            let resultPath = (self.directory as NSString).appendingPathComponent("results/\(commandId).json")
             if let data = try? Data(contentsOf: URL(fileURLWithPath: resultPath)),
                let result = try? JSONDecoder().decode(CommandResult.self, from: data) {
                 pendingCommands.removeValue(forKey: commandId)
                 submitting.remove(requestId)
+                if result.status == "accepted" || result.status == "stale" { settled.insert(requestId) }
                 try? FileManager.default.removeItem(atPath: resultPath)
                 logLine("interaction-result request=\(requestId) status=\(result.status)")
                 if result.status == "accepted" { windows[requestId]?.finish(request.kind == "approval" ? "决定已提交，DSH 已接受。" : "已提交全部回答。") }
@@ -677,7 +714,7 @@ final class NotificationInteractions {
         content.sound = nativePreferences()["sound"] == false ? nil : .default
         content.categoryIdentifier = request.kind == "approval" ? Self.categoryApproval : Self.categoryQuestions
         content.userInfo = ["interactionId": request.id, "sessionId": request.sessionId]
-        center.add(UNNotificationRequest(identifier: "interaction-" + request.id, content: content, trigger: nil)) { error in
+        center?.add(UNNotificationRequest(identifier: "interaction-" + request.id, content: content, trigger: nil)) { error in
             logLine(error.map { "interaction-post-failed \($0.localizedDescription)" } ?? "interaction-posted request=\(request.id) kind=\(request.kind)")
         }
     }
@@ -695,25 +732,26 @@ final class NotificationInteractions {
         controller.onClose = { [weak self] in self?.windows.removeValue(forKey: request.id); self?.writePanelLease() }
         windows[request.id] = controller
         controller.setTransitioning(request.phase == "transitioning")
+        if submitting.contains(request.id) { controller.markSending() }
         controller.present()
         writePanelLease()
     }
     private func writePanelLease() {
         let ids = windows.filter { $0.value.request.kind == "questions" && $0.value.acceptsAnswers && active[$0.key] != nil }.map { $0.key }
-        let path = (stateDir as NSString).appendingPathComponent("open-panels.json")
+        let path = (self.directory as NSString).appendingPathComponent("open-panels.json")
         if let data = try? JSONSerialization.data(withJSONObject: ["updatedAt": Date().timeIntervalSince1970 * 1000, "ids": ids]) {
             try? data.write(to: URL(fileURLWithPath: path), options: .atomic)
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
         }
     }
-    private func submit(_ request: NativeRequest, answer: Any) {
-        guard !submitting.contains(request.id) else { return }
-        guard active[request.id] != nil else {
+    @discardableResult private func submit(_ request: NativeRequest, answer: Any) -> String? {
+        guard !submitting.contains(request.id) else { return "此请求正在提交，请等待 DSH 确认。" }
+        guard !settled.contains(request.id), active[request.id] != nil else {
             windows[request.id]?.finish("请求已提交或失效。")
-            return
+            return "请求已提交或失效。"
         }
         let commandId = UUID().uuidString
-        let directory = (stateDir as NSString).appendingPathComponent("commands")
+        let directory = (self.directory as NSString).appendingPathComponent("commands")
         do {
             try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let data = try JSONSerialization.data(withJSONObject: ["commandId": commandId, "requestId": request.id, "answer": answer])
@@ -724,9 +762,12 @@ final class NotificationInteractions {
             windows[request.id]?.markSending()
             pendingCommands[commandId] = (request, Date())
             logLine("interaction-submitted request=\(request.id)")
+            return nil
         } catch {
-            reportFailure(request, message: "无法提交：\(error.localizedDescription)。请回到 DSH 处理。", retryable: true)
+            let message = "无法提交：\(error.localizedDescription)。请回到 DSH 处理。"
+            reportFailure(request, message: message, retryable: true)
             logLine("interaction-submit-failed \(error.localizedDescription)")
+            return message
         }
     }
     private func reportFailure(_ request: NativeRequest, message: String, retryable: Bool) {
@@ -742,7 +783,7 @@ final class NotificationInteractions {
         var components = URLComponents(string: "http://127.0.0.1:3080/")!
         components.queryItems = [URLQueryItem(name: "session", value: request.sessionId)]
         content.userInfo = ["url": components.url!.absoluteString]
-        center.add(UNNotificationRequest(identifier: "dsh-result-" + UUID().uuidString, content: content, trigger: nil)) { error in
+        center?.add(UNNotificationRequest(identifier: "dsh-result-" + UUID().uuidString, content: content, trigger: nil)) { error in
             if let error = error { logLine("interaction-result-notice-failed \(error.localizedDescription)") }
         }
     }

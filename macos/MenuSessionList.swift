@@ -8,6 +8,8 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
  private var nodes:[String:MenuNode]=[:],expanded=Set<String>(),stale=false,observer:NSObjectProtocol?
  private let sticky=NSVisualEffectView()
  var onOpen:((String)->Void)?,onToggle:((String)->Void)?
+ var interactions:[String:[MenuInteraction]]=[:]
+ var onInteraction:((MenuInteraction,MenuInteractionAction)->Void)?
  override init(frame:NSRect) {
   super.init(frame:frame)
   let column=NSTableColumn(identifier:NSUserInterfaceItemIdentifier("session"));table.addTableColumn(column)
@@ -74,7 +76,7 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
   stickyRootId=root;sticky.isHidden=root==nil
   for child in sticky.subviews{child.removeFromSuperview()}
   guard let id=root,let node=nodes[id] else{return}
-  let row=SessionMenuRowView(node:node,depth:0,expanded:true,stale:stale){[weak self] in self?.onToggle?(id)}
+  let row=makeRow(node,depth:0,expanded:true)
   row.onOpen={[weak self] in self?.onOpen?(id)}
   row.translatesAutoresizingMaskIntoConstraints=false;sticky.addSubview(row)
   NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo:sticky.leadingAnchor),row.trailingAnchor.constraint(equalTo:sticky.trailingAnchor),row.topAnchor.constraint(equalTo:sticky.topAnchor),row.bottomAnchor.constraint(equalTo:sticky.bottomAnchor)])
@@ -84,8 +86,11 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
  func tableView(_ tableView:NSTableView,shouldSelectRow row:Int)->Bool {rows[row].sessionId != nil}
  func tableView(_ tableView:NSTableView,viewFor tableColumn:NSTableColumn?,row:Int)->NSView? {
   let item=rows[row]
-  if let id=item.sessionId,let node=nodes[id]{return SessionMenuRowView(node:node,depth:item.depth,expanded:expanded.contains(id),stale:stale){[weak self] in self?.onToggle?(id)}}
+  if let id=item.sessionId,let node=nodes[id]{return makeRow(node,depth:item.depth,expanded:expanded.contains(id))}
   let label=NSTextField(labelWithString:item.section ?? "");label.font = .systemFont(ofSize:11);label.textColor = .secondaryLabelColor;return label
+ }
+ private func makeRow(_ node:MenuNode,depth:Int,expanded:Bool)->SessionMenuRowView {
+  SessionMenuRowView(node:node,depth:depth,expanded:expanded,stale:stale,interactions:interactions[node.id] ?? [],onDisclosure:{[weak self] in self?.onToggle?(node.id)},onInteraction:{[weak self] item,action in self?.onInteraction?(item,action)})
  }
  @objc private func clicked(){let row=table.clickedRow;guard row>=0,row<rows.count,let id=rows[row].sessionId else{return};onOpen?(id)}
 }

@@ -73,6 +73,7 @@ import Cocoa
   var navigationCompletion:((String?)->Void)?
   let controller=SessionMenuController(directory:directory.path,openSession:{id,completion in opened.append(id);navigationCompletion=completion},openDesktop:{false})
   controller.poll(at:1000);check(controller.statusItem != nil,"enabled status item missing")
+  check(controller.content.visibleRows.isEmpty,"closed menu rebuilds invisible session rows on every poll")
   let beforeNavigation=opened.count
   controller.navigate("parent");controller.navigate("parent");controller.navigate("/invalid")
   check(opened.count==beforeNavigation+1 && opened.last=="parent","duplicate or invalid menu jump")

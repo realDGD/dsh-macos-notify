@@ -28,9 +28,14 @@ final class MenuProgressView:NSView {
 final class SessionMenuRowView:NSTableCellView {
  let title=NSTextField(labelWithString:""),preview=NSTextField(labelWithString:""),status=NSTextField(labelWithString:""),progress=MenuProgressView()
  private let disclosure=NSButton(title:"",target:nil,action:nil),dot=NSView()
+ private let controls=NSView(),actions=NSStackView(),picker=NSPopUpButton(frame:.zero,pullsDown:true)
+ private var actionTargets:[MenuActionTarget]=[]
+ private let interactions:[MenuInteraction],stale:Bool
+ private let onInteraction:(MenuInteraction,MenuInteractionAction)->Void
  var onOpen:(()->Void)?
  private var onDisclosure:(()->Void)?
- init(node:MenuNode,depth:Int,expanded:Bool,stale:Bool,onDisclosure:@escaping()->Void) {
+ init(node:MenuNode,depth:Int,expanded:Bool,stale:Bool,interactions:[MenuInteraction]=[],onDisclosure:@escaping()->Void,onInteraction:@escaping(MenuInteraction,MenuInteractionAction)->Void={_,_ in}) {
+  self.interactions=interactions.filter{$0.sessionId==node.id && !$0.actions.isEmpty};self.stale=stale;self.onInteraction=onInteraction
   super.init(frame:.zero);self.onDisclosure=onDisclosure
   for label in [title,preview,status] {label.maximumNumberOfLines=1;label.lineBreakMode = .byTruncatingTail;label.cell?.truncatesLastVisibleLine=true}
   title.stringValue=(depth>8 ? "第\(depth)层 · ":"")+node.title;title.font = .systemFont(ofSize:12,weight:.semibold)
@@ -52,6 +57,8 @@ final class SessionMenuRowView:NSTableCellView {
   let offset=CGFloat(min(depth,8))*12
   let disclosureWidth:CGFloat=node.childIds.isEmpty && depth==0 ? 0:28
   for child in [disclosure,dot,title,preview,status,progress] {child.translatesAutoresizingMaskIntoConstraints=false;addSubview(child)}
+  addSubview(controls)
+  configureActions()
   let textEnd=node.progress==nil ? trailingAnchor:progress.leadingAnchor
   NSLayoutConstraint.activate([
    disclosure.leadingAnchor.constraint(equalTo:leadingAnchor,constant:4+offset),disclosure.widthAnchor.constraint(equalToConstant:disclosureWidth),disclosure.topAnchor.constraint(equalTo:topAnchor,constant:5),disclosure.heightAnchor.constraint(equalToConstant:32),
@@ -63,8 +70,50 @@ final class SessionMenuRowView:NSTableCellView {
   alphaValue=stale ? 0.5:1;setAccessibilityElement(true);setAccessibilityRole(.row);setAccessibilityLabel(node.accessibleLabel)
  }
  required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
+ private func configureActions() {
+  actions.orientation = .horizontal;actions.spacing=4
+  picker.font = .systemFont(ofSize:10);picker.addItem(withTitle:interactions.count>1 ? "处理请求（\(interactions.count)）":"处理请求")
+  picker.menu?.autoenablesItems=false
+  picker.setAccessibilityLabel("处理当前会话的审批或问答")
+  let callback=onInteraction
+  func target(_ item:MenuInteraction,_ action:MenuInteractionAction)->MenuActionTarget {
+   let result=MenuActionTarget{callback(item,action)};actionTargets.append(result);return result
+  }
+  for (index,item) in interactions.enumerated() {
+   let menu=NSMenu();menu.autoenablesItems=false
+   for action in item.actions {
+    let entry=NSMenuItem(title:action.title,action:#selector(MenuActionTarget.invoke),keyEquivalent:"")
+    let handler=target(item,action);entry.target=handler;entry.representedObject=handler
+    entry.isEnabled = !stale && item.enabled(action);menu.addItem(entry)
+    if interactions.count==1 {
+     let button=NSButton(title:action.title,target:entry.target,action:entry.action)
+     button.font = .systemFont(ofSize:10);button.bezelStyle = .rounded;button.isEnabled=entry.isEnabled
+     button.setAccessibilityLabel(action.title+" · "+item.title);actions.addArrangedSubview(button)
+    }
+   }
+   if interactions.count==1 {for entry in menu.items {menu.removeItem(entry);picker.menu?.addItem(entry)}}
+   else {let entry=NSMenuItem(title:(item.kind=="approval" ? "审批":"问答")+" \(index+1)："+item.title,action:nil,keyEquivalent:"");entry.submenu=menu;picker.menu?.addItem(entry)}
+  }
+  picker.isEnabled = !stale
+  for child in [actions,picker]{controls.addSubview(child)}
+ }
+ override func layout() {
+  super.layout()
+  let available=max(0,preview.frame.width),direct=actions.fittingSize.width
+  let compact=interactions.count>1 || available<direct+50
+  controls.isHidden=interactions.isEmpty;actions.isHidden=compact;picker.isHidden = !compact
+  let width=interactions.isEmpty ? 0:compact ? min(available,min(120,max(44,available-45))):direct
+  controls.frame=NSRect(x:preview.frame.maxX-width,y:status.frame.midY-12,width:width,height:24)
+  actions.frame=controls.bounds;picker.frame=controls.bounds
+  status.frame.size.width=max(0,available-(width==0 ? 0:width+4))
+ }
  override func mouseDown(with event:NSEvent){if let onOpen=onOpen{onOpen()}else{super.mouseDown(with:event)}}
  @objc private func toggle(){onDisclosure?()}
+}
+private final class MenuActionTarget:NSObject {
+ private let callback:()->Void
+ init(_ callback:@escaping()->Void){self.callback=callback}
+ @objc func invoke(){callback()}
 }
 final class MenuTableView:NSTableView {
  var keyHandler:((UInt16)->Bool)?
@@ -76,6 +125,7 @@ final class SessionMenuViewController:NSViewController {
  var scrollView:NSScrollView {activeList.scrollView}
  var visibleRows:[MenuVisibleRow] {activeList.rows}
  var onOpenSession:((String)->Void)?,onDisableMenu:(()->Void)?,onOpenDesktop:(()->Void)?,onClose:(()->Void)?
+ var onInteraction:((MenuInteraction,MenuInteractionAction)->Void)?
  private let connection=NSTextField(labelWithString:""),errorLabel=NSTextField(labelWithString:""),footer=NSTextField(labelWithString:"")
  private let readButton=NSButton(title:"一键已读",target:nil,action:nil),filter=NSPopUpButton(frame:.zero,pullsDown:false)
  private let activityState:MenuActivityState
@@ -101,6 +151,7 @@ final class SessionMenuViewController:NSViewController {
   divider.boxType = .separator
   for list in [activeList,historyList] {
    list.onOpen={[weak self] id in self?.onOpenSession?(id)};list.onToggle={[weak self] id in self?.toggle(id)}
+   list.onInteraction={[weak self] item,action in self?.onInteraction?(item,action)}
    list.table.keyHandler={[weak self,weak list] key in guard let list=list else{return false};return self?.handleKey(key,list:list) ?? false}
   }
   activeList.table.setAccessibilityLabel("活动会话列表");historyList.table.setAccessibilityLabel("最近会话列表")
@@ -120,9 +171,11 @@ final class SessionMenuViewController:NSViewController {
    errorLabel.leadingAnchor.constraint(equalTo:heading.leadingAnchor),errorLabel.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-12),errorLabel.topAnchor.constraint(equalTo:historyList.bottomAnchor,constant:4),errorLabel.heightAnchor.constraint(equalToConstant:30),
    footer.leadingAnchor.constraint(equalTo:heading.leadingAnchor),footer.trailingAnchor.constraint(equalTo:errorLabel.trailingAnchor),footer.topAnchor.constraint(equalTo:errorLabel.bottomAnchor,constant:2),footer.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-8),footer.heightAnchor.constraint(equalToConstant:17)])
  }
- func update(snapshot:MenuSnapshot?,status:String,stale:Bool,error:String?) {
+ func update(snapshot:MenuSnapshot?,status:String,stale:Bool,error:String?,interactions:[MenuInteraction]=[]) {
   self.snapshot=snapshot;self.stale=stale;nodes=Dictionary(uniqueKeysWithValues:(snapshot?.nodes ?? []).map{($0.id,$0)})
   activityState.update(snapshot)
+  let grouped=Dictionary(grouping:interactions,by:{$0.sessionId})
+  activeList.interactions=grouped;historyList.interactions=grouped
   expanded.formIntersection(Set(nodes.keys))
   connection.stringValue=status;errorLabel.stringValue=error ?? ""
   footer.stringValue=(snapshot?.omittedCount ?? 0)>0 ? "另有 \(snapshot!.omittedCount) 条，请在 DSH 查看":"点击会话打开 DSH · 箭头展开子代理"

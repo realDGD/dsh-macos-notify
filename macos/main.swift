@@ -99,6 +99,10 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
         }, openDesktop: {
             guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: desktopBundleID) != nil else { return false }
             return NSWorkspace.shared.open(URL(string: "dsh://open")!)
+        }, interactions: {
+            NotificationInteractions.shared.menuInteractions()
+        }, performInteraction: { item, action in
+            NotificationInteractions.shared.handleMenuInteraction(item, action: action)
         })
         center.requestAuthorization(options: [.alert, .sound]) { granted, error in
             var line = "auth granted=\(granted)"

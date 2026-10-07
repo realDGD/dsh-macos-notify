@@ -16,9 +16,9 @@ async function fixture(t, event = 'user-questions/request', service, setup) {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-native-actions-'))
   const official = deferred()
   if (service) ctx.provide('userQuestions', service)
-  let child
+  let child, accessor
   ctx.on(event, request => { child = request; return official.promise })
-  await ctx.plugin({ name: 'native-test', apply(ctx) { installInteractions(ctx, { stateDir: dir }) } })
+  await ctx.plugin({ name: 'native-test', apply(ctx) { accessor = installInteractions(ctx, { stateDir: dir }) } })
   t.after(async () => { await ctx.fiber.dispose(); rmSync(dir, { recursive: true, force: true }) })
   const signal = new AbortController()
   const request = {
@@ -44,8 +44,19 @@ async function fixture(t, event = 'user-questions/request', service, setup) {
     }
     throw new Error('command was not answered')
   }
-  return { ctx, dir, official, request, pending, signal, state, command, child: () => child }
+  return { ctx, dir, official, request, pending, signal, state, command, child: () => child, accessor }
 }
+
+test('pending_accessor_first_wins: read-only states follow original acceptance and cloned values cannot corrupt requests', check, async t => {
+  const f=await fixture(t)
+  const states=f.accessor.pendingStates()
+  assert.equal(states.get('session-1').questions,true)
+  states.get('session-1').questions=false
+  assert.equal(f.accessor.pendingStates().get('session-1').questions,true)
+  f.official.resolve(answer)
+  await f.pending
+  assert.equal(f.accessor.pendingStates().size,0)
+})
 
 const answer = { answers: [
   { id: 'q1', selected: ['A'], custom: 'Extra detail' },
@@ -235,11 +246,14 @@ test('Desktop Continue timeout keeps one visible request throughout the foregrou
   await rejected
   assert.equal(f.state().requests[0]?.id, notice.id, 'transition must not publish an empty snapshot and terminalize the native form')
   assert.equal(f.state().requests[0].phase, 'transitioning')
+  assert.equal(f.accessor.pendingStates().get('session-1').questions, true)
   assert.equal((await f.command(notice.id, answer)).status, 'waiting')
   continued = [{ callId: 'tool-1' }]
   await sleep(300)
   assert.equal(f.state().requests[0].id, notice.id)
+  assert.equal(f.accessor.pendingStates().get('session-1').questions, true)
   assert.equal((await f.command(notice.id, answer)).status, 'accepted')
+  assert.equal(f.accessor.pendingStates().size, 0)
 })
 
 test('snapshot write failure cannot prevent an official approval from settling or cancelling the losing delivery', check, async t => {

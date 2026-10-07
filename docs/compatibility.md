@@ -36,6 +36,7 @@ The current helper coordinates one local active DSH profile/state namespace. Mul
 - Node renderer regressions verify table/list/code rendering, four math delimiters, exact TeX in blockquotes/nested lists, inert HTML, blocked image loading, invalid-formula fallback and all vendored file/font hashes and notices.
 - Real native AppKit checks cover parameter formatting/original view/copy, large numbers/escapes/duplicate keys/leading combining characters, narrow-window command/parameter wrapping and existing question/navigation regressions.
 - Actual WebKit in the native question disclosure loads local fonts, renders tables and formulas, wraps long table cells, keeps a bounded scrollable context pane and blocks programmatic external navigation. The context renderer loads only when expanded.
+- The regression runs inside an application bundle with spaces in its path, matching installed resource-URL behavior. Navigation compares normalized local URLs while rejecting other documents, query/fragment variants and programmatic external navigation.
 - This is component/layout evidence. Live visible-window and notification-click acceptance remain separate checks; older macOS/Intel real-device validation is still required.
 
 ## v0.3.1 reminder and diagnostic checks

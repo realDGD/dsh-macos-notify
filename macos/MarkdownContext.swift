@@ -4,7 +4,7 @@ import WebKit
 private final class ContextHeightHandler: NSObject, WKScriptMessageHandler {
     weak var owner: MarkdownContextView?
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, message.frameInfo.request.url == owner?.documentURL,
+        guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.standardizedFileURL == owner?.documentURL,
               let value = message.body as? Double, value.isFinite else { return }
         owner?.updateHeight(value)
     }
@@ -21,13 +21,13 @@ final class MarkdownContextView: NSView, WKNavigationDelegate {
 
     static var assetsURL: URL {
         let bundled = Bundle.main.resourceURL?.appendingPathComponent("renderer", isDirectory: true)
-        if let bundled, FileManager.default.fileExists(atPath: bundled.appendingPathComponent("context.html").path) { return bundled }
+        if let bundled, FileManager.default.fileExists(atPath: bundled.appendingPathComponent("context.html").path) { return bundled.standardizedFileURL }
         // Source-linked native tests run without an application bundle.
         return URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("assets", isDirectory: true)
     }
     init(_ items: [NativeContext]) {
         self.items = items
-        documentURL = Self.assetsURL.appendingPathComponent("context.html")
+        documentURL = Self.assetsURL.appendingPathComponent("context.html").standardizedFileURL
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         let handler = ContextHeightHandler()
@@ -61,7 +61,7 @@ final class MarkdownContextView: NSView, WKNavigationDelegate {
         if abs(height.constant - next) > 1 { height.constant = next }
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard webView.url == documentURL else { return }
+        guard webView.url?.standardizedFileURL == documentURL else { return }
         do {
             let data = try JSONEncoder().encode(items)
             let json = String(decoding: data, as: UTF8.self)
@@ -95,7 +95,7 @@ final class MarkdownContextView: NSView, WKNavigationDelegate {
     }
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url else { decisionHandler(.cancel); return }
-        if action.navigationType == .other, action.targetFrame?.isMainFrame == true, url == documentURL {
+        if action.navigationType == .other, action.targetFrame?.isMainFrame == true, url.isFileURL, url.query == nil, url.fragment == nil, url.standardizedFileURL == documentURL {
             decisionHandler(.allow); return
         }
         if action.navigationType == .linkActivated, ["https", "http"].contains(url.scheme?.lowercased() ?? "") {

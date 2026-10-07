@@ -2,6 +2,8 @@
 
 ## 0.5.0
 
+- Normalize bundled context-document URLs before navigation checks so expanded question/approval Markdown loads from the installed app instead of leaving a blank pane. Run the WebKit regression from a real application bundle.
+- Reserve approval-control space in both text constraints and immediate row layout, including older macOS control metrics.
 - Add the white fish.circle menu symbol with an independently colored ring, rotating fish and one-second pause. Track concurrent run batches before snapshot coalescing; acknowledge alerts on panel opening and ignore user cancellations.
 - Stack green Allow once and red Deny buttons vertically. Keep approval context in the notification's details entry and remove the redundant menu-row details button.
 - Pace the 0.26-second expansion with the display refresh rate and preserve transitions across unchanged Host heartbeats.

@@ -2,6 +2,7 @@
 
 ## 0.5.0
 
+- Size short approval command/argument previews to their text and group related controls more tightly, keeping the context disclosure visible at the default window height. Long previews and narrow windows remain scrollable.
 - Normalize bundled context-document URLs before navigation checks so expanded question/approval Markdown loads from the installed app instead of leaving a blank pane. Run the WebKit regression from a real application bundle.
 - Reserve approval-control space in both text constraints and immediate row layout, including older macOS control metrics.
 - Add the white fish.circle menu symbol with an independently colored ring, rotating fish and one-second pause. Track concurrent run batches before snapshot coalescing; acknowledge alerts on panel opening and ignore user cancellations.

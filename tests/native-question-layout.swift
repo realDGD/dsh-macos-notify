@@ -144,6 +144,29 @@ struct NativeQuestionLayoutTests {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.writeObjects(clipboard)
             let longCommand = "echo " + String(repeating: "veryLongTokenWithoutBreaks", count: 120) + String(repeating: "中文", count: 80)
+            let compactCommand = "printf 'approval preview'; date '+%Y-%m-%d %H:%M:%S' > /example/probe.txt && cat /example/probe.txt"
+            let compactArguments = #"{"command":"printf 'approval preview'; date '+%Y-%m-%d %H:%M:%S' > /example/probe.txt && cat /example/probe.txt","description":"Preview approval without executing anything","justification":"测试审批详情：需要核实工作区之外的文件写入，允许或拒绝之前先查看完整上下文。","sandbox_permissions":"danger-full-access"}"#
+            let compactRequest = NativeRequest(id: "compact-approval", kind: "approval", sessionId: "layout-only", title: "审批布局", subtitle: "", body: "", questions: nil, phase: "foreground", approval: NativeApproval(toolName: "bash", reason: "escalate sandbox to danger-full-access: 测试审批详情：需要核实工作区之外的文件写入，允许或拒绝之前先查看完整上下文。", callId: nil, arguments: compactArguments, command: compactCommand))
+            let compactWindow = QuestionWindow(compactRequest)
+            compactWindow.window!.setContentSize(NSSize(width: 640, height: 700))
+            let compactRoot = compactWindow.window!.contentView!
+            compactRoot.layoutSubtreeIfNeeded()
+            let compactScroll = descendants(compactRoot).compactMap { $0 as? NSScrollView }.first!
+            let compactDocument = compactScroll.documentView!
+            let contextToggle = descendants(compactDocument).compactMap { $0 as? NSButton }.first { $0.title == "查看相关上下文与会话信息" }!
+            let toggleRect = contextToggle.convert(contextToggle.bounds, to: compactDocument)
+            if !compactScroll.documentVisibleRect.contains(toggleRect) {
+                print("FAIL short approval context needs a taller window: toggle=\(toggleRect), viewport=\(compactScroll.documentVisibleRect), document=\(compactDocument.frame)"); failures += 1
+            } else { print("PASS short approval exposes context without resizing") }
+            compactWindow.window!.setContentSize(NSSize(width: 460, height: 400))
+            compactRoot.layoutSubtreeIfNeeded()
+            let compactBottom = max(0, compactDocument.bounds.height - compactScroll.contentView.bounds.height)
+            compactScroll.contentView.scroll(to: NSPoint(x: 0, y: compactBottom))
+            compactScroll.reflectScrolledClipView(compactScroll.contentView)
+            let narrowToggleRect = contextToggle.convert(contextToggle.bounds, to: compactDocument)
+            if !compactScroll.documentVisibleRect.contains(narrowToggleRect) {
+                print("FAIL narrow approval cannot scroll to context: toggle=\(narrowToggleRect), viewport=\(compactScroll.documentVisibleRect)"); failures += 1
+            } else { print("PASS narrow approval can scroll to its final context control") }
             let wrappingRequest = NativeRequest(id: "wrap", kind: "approval", sessionId: "s1", title: "换行", subtitle: "", body: "", questions: nil, phase: "foreground", approval: NativeApproval(toolName: "bash", reason: "", callId: nil, arguments: "{\"command\":\"" + longCommand + "\"}", command: longCommand))
             let wrappingWindow = QuestionWindow(wrappingRequest)
             wrappingWindow.window!.setContentSize(NSSize(width: 460, height: 400))

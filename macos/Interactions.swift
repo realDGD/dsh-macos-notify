@@ -294,11 +294,31 @@ func highlightedCode(_ text: String, language: String) -> NSAttributedString {
     return result
 }
 
+private final class CodePreviewScrollView: NSScrollView {
+    var previewHeight: NSLayoutConstraint?
+    override func layout() {
+        super.layout()
+        guard contentSize.width > 0, let text = documentView as? NSTextView,
+              let container = text.textContainer, let manager = text.layoutManager else { return }
+        manager.ensureLayout(for: container)
+        let textHeight = ceil(manager.usedRect(for: container).height + text.textContainerInset.height * 2)
+        let next = min(180, max(44, textHeight + 2))
+        if let height = previewHeight, abs(height.constant - next) > 0.5 { height.constant = next }
+        // Keep a short preview from retaining its original tall document frame.
+        text.setFrameSize(NSSize(width: contentSize.width, height: max(contentSize.height, textHeight)))
+    }
+}
+
 func readOnlyText(_ text: String, label: String, language: String) -> NSScrollView {
-    let scroll = NSScrollView()
+    let scroll = CodePreviewScrollView()
     scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = false
+    scroll.autohidesScrollers = true
     scroll.borderType = .bezelBorder
-    scroll.heightAnchor.constraint(equalToConstant: 180).isActive = true
+    let height = scroll.heightAnchor.constraint(equalToConstant: 180)
+    // A fallback context pane can also pin this view to its own bounded height.
+    height.priority = .init(999)
+    height.isActive = true
+    scroll.previewHeight = height
     // Match the initial clip width (zero before layout), so autoresizing
     // follows clip growth without retaining an independent 600px baseline.
     // The macOS 15 regression also checks the final glyph bounds.
@@ -376,6 +396,7 @@ private final class ArgumentsSection: NSStackView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
     @objc private func showOriginal(_ sender: NSButton) {
         text.textStorage?.setAttributedString(highlightedCode(sender.state == .on ? original : formatted, language: "json"))
+        text.enclosingScrollView?.needsLayout = true
         text.scrollRangeToVisible(NSRange(location: 0, length: 0))
     }
     @objc private func copyOriginal() {
@@ -439,18 +460,24 @@ final class QuestionWindow: NSWindowController, NSWindowDelegate {
             stack.addArrangedSubview(view)
             view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
+        func addGroup(_ views: [NSView]) {
+            let group = NSStackView(views: views)
+            group.orientation = .vertical; group.alignment = .leading; group.spacing = 8
+            for child in views where !(child is NSButton) {
+                child.widthAnchor.constraint(equalTo: group.widthAnchor).isActive = true
+            }
+            addSection(group)
+        }
         if request.kind == "approval" {
             addSection(wrapped(request.approval?.toolName ?? request.body, bold: true))
             if let reason = request.approval?.reason { addSection(wrapped("请求原因\n" + reason, markdown: true)) }
             if let command = request.approval?.command {
-                addSection(wrapped("待执行命令", bold: true))
-                addSection(readOnlyText(command, label: "完整待执行命令", language: "shell"))
                 let copy = NSButton(title: "复制完整命令", target: self, action: #selector(copyCommand))
-                copy.bezelStyle = .rounded; stack.addArrangedSubview(copy)
+                copy.bezelStyle = .rounded
+                addGroup([wrapped("待执行命令", bold: true), readOnlyText(command, label: "完整待执行命令", language: "shell"), copy])
             }
             if let arguments = request.approval?.arguments {
-                addSection(wrapped("完整工具参数（含权限与工作目录设置）", bold: true))
-                addSection(ArgumentsSection(arguments))
+                addGroup([wrapped("完整工具参数（含权限与工作目录设置）", bold: true), ArgumentsSection(arguments)])
             } else { addSection(wrapped("无法取得此请求的完整工具参数，请回到 DSH 核实后决定。")) }
         }
         addSection(ContextSection(request))

@@ -102,6 +102,20 @@ struct NativeQuestionLayoutTests {
             let rich = Data(#"{"id":"details-test","kind":"approval","sessionId":"s1","title":"请求批准","subtitle":"Old","body":"summary","sessionTitle":"真实名称","cwd":"/工作区","context":[{"role":"user","text":"为什么要执行？"}],"approval":{"toolName":"bash","reason":"需要权限","command":"printf '完整命令\\n'","arguments":"{\"command\":\"printf '完整命令\\\\n'\"}"}}"#.utf8)
             let request = try! JSONDecoder().decode(NativeRequest.self, from: rich)
             let details = QuestionWindow(request)
+            let draftQuestion=NativeQuestion(id:"draft",question:"保留草稿？",header:nil,detail:nil,options:nil,multiSelect:false)
+            let draftWindow=QuestionWindow(NativeRequest(id:UUID().uuidString,kind:"questions",sessionId:"draft-target",title:"草稿",subtitle:"草稿",body:"",questions:[draftQuestion],phase:"foreground"))
+            let draftInput=descendants(draftWindow.window!.contentView!).compactMap{$0 as? NSTextView}.first{$0.isEditable}!
+            draftInput.string="尚未提交的独立草稿"
+            let menuData=try! JSONSerialization.data(withJSONObject:["version":1,"generation":UUID().uuidString,"revision":1,"updatedAt":2000,"enabled":true,"availability":"ready",
+              "activeIds":["menu-target"],"orphanIds":[],"historyIds":[],"omittedCount":0,
+              "nodes":[["id":"menu-target","parentId":NSNull(),"workspaceTitle":"测试工作区","sessionTitle":"菜单会话","state":"running","preview":"用户输入","previewKind":"user","pinned":false,"pinIndex":NSNull(),"progress":NSNull(),"childIds":[],"descendantBadge":NSNull(),"updatedAt":2000]]])
+            try! menuData.write(to:URL(fileURLWithPath:directory+"/session-menu.json"))
+            var menuOpened:[String]=[]
+            let sessionMenu=SessionMenuController(directory:directory,openSession:{id,completion in menuOpened.append(id);completion(nil)},openDesktop:{false})
+            sessionMenu.poll(at:2000);sessionMenu.navigate("menu-target");sessionMenu.popover.performClose(nil)
+            if menuOpened != ["menu-target"] || draftInput.string != "尚未提交的独立草稿" || draftWindow.window==nil {
+                print("FAIL menu close altered independent question draft");failures+=1
+            } else {print("PASS menu navigation and close preserve independent question draft")}
             let views = descendants(details.window!.contentView!)
             let hasDetails = details.window!.title.contains("真实名称") && views.compactMap { $0 as? NSTextView }.contains { $0.string == "printf '完整命令\\n'" }
             print("\(hasDetails ? "PASS" : "FAIL") approval displays the exact command and real title")

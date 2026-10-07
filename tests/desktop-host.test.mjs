@@ -35,6 +35,10 @@ test('真实 Cordis 下认证 API 路由在调用插件生命周期内注册和�
   await ctx.plugin({ name: 'test-connection', apply(ctx) { new Connection(ctx) } })
   const fiber = await ctx.plugin(hostPlugin, { stateDir: dir })
   assert.equal(typeof routes.get('/api/dsh-macos-notify/pending')?.fetch, 'function')
+  await new Promise(resolve => setImmediate(resolve))
+  const menu = JSON.parse(readFileSync(join(dir, 'session-menu.json'), 'utf8'))
+  assert.equal(menu.availability, 'unavailable')
+  assert.equal(menu.enabled, true)
   await fiber.dispose()
   assert.equal(routes.size, 0)
 })
@@ -80,6 +84,27 @@ test('宿主保留请求直到客户端确认对应会话', async (t) => {
   assert.equal((await handler('ack', { requestId: 'click-1', sessionId: 'session-1' })).ok, true)
   assert.equal(await handler('pending', {}), null)
   assert.equal(JSON.parse(readFileSync(join(dir, 'jump-result.json'))).sessionId, 'session-1')
+})
+test('Host derives cold-child address from its fresh bounded menu tree, not arbitrary incoming routing hints',async t=>{
+ const f=host(t);f.put('child-request','grandchild')
+ const incoming=JSON.parse(readFileSync(join(f.dir,'open-session.json'),'utf8'))
+ writeFileSync(join(f.dir,'open-session.json'),JSON.stringify({...incoming,lineage:['wrong','grandchild'],address:{parentSessionId:'wrong',childSessionId:'grandchild',mode:'unknown'}}))
+ const snapshot={version:1,generation:crypto.randomUUID(),updatedAt:Date.now(),nodes:[{id:'root',parentId:null},{id:'child',parentId:'root'},{id:'grandchild',parentId:'child'}]}
+ writeFileSync(join(f.dir,'session-menu.json'),JSON.stringify(snapshot))
+ const request=await f.handler('pending',{})
+ assert.deepEqual(request.lineage,['root','child','grandchild'])
+ assert.deepEqual(request.address,{parentSessionId:'child',childSessionId:'grandchild',mode:'unknown'})
+ snapshot.updatedAt-=7000;writeFileSync(join(f.dir,'session-menu.json'),JSON.stringify(snapshot))
+ assert.equal((await f.handler('pending',{})).address,undefined)
+})
+test('matching jump receipt remains bounded regardless of routing lineage length',async t=>{
+ const f=host(t);f.put('bounded-receipt','node-299')
+ const nodes=Array.from({length:300},(_,i)=>({id:'node-'+i,parentId:i?'node-'+(i-1):null}))
+ writeFileSync(join(f.dir,'session-menu.json'),JSON.stringify({version:1,updatedAt:Date.now(),nodes}))
+ assert.equal((await f.handler('pending',{})).lineage.length,300)
+ assert.equal((await f.handler('ack',{requestId:'bounded-receipt',sessionId:'node-299'})).ok,true)
+ const receipt=JSON.parse(readFileSync(join(f.dir,'jump-result.json'),'utf8'))
+ assert.deepEqual(Object.keys(receipt).sort(),['confirmedAt','createdAt','requestId','sessionId'])
 })
 
 test('较早点击的确认不能清掉后来点击的请求', async (t) => {

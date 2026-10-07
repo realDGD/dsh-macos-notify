@@ -44,3 +44,12 @@ The current helper coordinates one local active DSH profile/state namespace. Mul
 - The native safe-test payload retains its identity through the notification callback. Delivery receipts contain only a validated test ID, coarse acceptance state and timestamp, use private permissions and retain at most 32 records.
 - A macOS accepted receipt means the system accepted the notification request. Actual display depends on system settings. Only a matching authenticated Desktop selection acknowledgement reports a confirmed test jump.
 - Live Desktop reload and notification-click acceptance remain separate from these source/component checks.
+
+## v0.4.0 session-menu checks
+
+- Node regressions cover official names/Pins, normal forks versus subagents, current-turn and inherited-message boundaries, actual todos, waiting-state ownership, bounded graph snapshots, cold-read cancellation/disposal and stale-result rejection.
+- Real native component tests cover 400 expanded children, deep/narrow trees, Unicode titles, one-line previews, scroll bounds, keyboard/accessibility, loading/stale recovery and menu-only disable/re-enable. A real independent question window retains its draft during menu navigation/close.
+- Cold child navigation uses the official SubagentAddress derived from a fresh private Host snapshot. Unknown/stale lineage produces a visible failure instead of guessing a workspace. No browser fallback is used by menu clicks.
+- These checks establish source/component contracts. Current Desktop reload, visible menu interaction and real notification/session-selection acknowledgement remain separate live acceptance steps. macOS 13/Intel device acceptance is still unverified.
+
+The menu uses the official 0.2.0-rc.2 session and format-catalog peer packages to fold the same retained observation; `sessionPersistence.stat` supplies lightweight revision tokens. Cache identity includes the persistence instance and session revision. Unchanged histories do not exceed the SDK’s prepared-cache capacity with repeated full reads, and no second uncancellable surface read is held across disposal. Local source installs must run `npm ci --ignore-scripts`; DSH package installs resolve the declared peer packages.

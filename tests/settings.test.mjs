@@ -12,6 +12,9 @@ function make(t) {
 test('preferences persist privately and survive a new Host generation', t => {
   const { dir, settings } = make(t)
   assert.equal(settings.get().sound, true)
+  assert.equal(settings.get().menuBarEnabled, true)
+  settings.save({ menuBarEnabled: false })
+  assert.equal(createSettings(dir).get().menuBarEnabled, false)
   settings.save({ sound: false, quietCurrentSession: true })
   assert.equal(createSettings(dir).get().sound, false)
   assert.equal(createSettings(dir).get().quietCurrentSession, true)

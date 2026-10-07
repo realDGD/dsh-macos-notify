@@ -9,7 +9,7 @@ final class SessionMenuController:NSObject {
  init(directory:String,openSession:@escaping(String,@escaping(String?)->Void)->Void,openDesktop:@escaping()->Bool) {
   self.directory=directory;self.openSession=openSession;self.openDesktop=openDesktop;control=SessionMenuControl(directory:directory)
   let screen=NSScreen.main?.visibleFrame.size ?? NSSize(width:420,height:600)
-  content=SessionMenuViewController(availableSize:NSSize(width:min(420,max(180,screen.width-24)),height:min(600,max(180,screen.height-48))))
+  content=SessionMenuViewController(availableSize:NSSize(width:min(420,max(180,screen.width-24)),height:min(600,max(180,screen.height-48))),directory:directory)
   super.init();popover.behavior = .transient;popover.contentViewController=content
   content.onOpenSession={[weak self] id in self?.navigate(id)}
   content.onClose={[weak self] in self?.popover.performClose(nil)}

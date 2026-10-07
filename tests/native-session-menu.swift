@@ -9,9 +9,9 @@ import Cocoa
     "preview":String(repeating:"长中文🙂",count:35),"previewKind":"user","pinned":false,"pinIndex":NSNull(),
     "progress":progress as Any? ?? NSNull(),"childIds":children,"descendantBadge":NSNull(),"updatedAt":1000]
   }
-  func data(_ nodes:[[String:Any]],active:[String]=["parent"],revision:Int=1,updated:Double=1000,enabled:Bool=true)->Data {
+  func data(_ nodes:[[String:Any]],active:[String]=["parent"],revision:Int=1,updated:Double=1000,enabled:Bool=true,history:[String]=[])->Data {
    try! JSONSerialization.data(withJSONObject:["version":1,"generation":generation,"revision":revision,"updatedAt":updated,"enabled":enabled,"availability":"ready",
-     "nodes":nodes,"activeIds":active,"orphanIds":[],"historyIds":[],"omittedCount":0])
+     "nodes":nodes,"activeIds":active,"orphanIds":[],"historyIds":history,"omittedCount":0])
   }
   let children=(0..<400).map{"child-\($0)"}
   let nodes=[node("parent",nil,children,"completed",["completed":3,"total":5])]+children.map{node($0,"parent")}
@@ -83,6 +83,79 @@ import Cocoa
   controller.poll(at:2000);check(controller.statusItem==nil && !controller.popover.isShown,"disabled menu retained")
   try data([node("parent")],revision:3,updated:3000).write(to:directory.appendingPathComponent("session-menu.json"))
   controller.poll(at:3000);check(controller.statusItem != nil,"reenabled status item missing")
+  // An acknowledgment must not hide a run or required input, and undo restores it.
+  let activityNodes=[node("done",nil,[],"completed"),node("failure",nil,[],"error"),node("live"),node("question",nil,[],"waiting-questions")]
+  let mixed=SessionMenuStore()
+  check(mixed.ingest(data(activityNodes,active:["failure","question","live","done"]),at:1000),"activity fixture decode")
+  let controls=SessionMenuViewController(availableSize:NSSize(width:420,height:600))
+  controls.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  let readButton=descendants(controls.view).compactMap{$0 as? NSButton}.first{$0.title=="一键已读"}
+  check(readButton != nil,"activity acknowledgment control missing")
+  readButton!.performClick(nil)
+  check(controls.visibleRows.compactMap(\.sessionId)==["question","live"],"read action concealed running or waiting session")
+  readButton!.performClick(nil)
+  check(controls.visibleRows.compactMap(\.sessionId)==["failure","question","live","done"],"undo failed to restore acknowledged activity")
+  let filter=descendants(controls.view).compactMap{$0 as? NSPopUpButton}.first
+  check(filter != nil,"activity filter missing")
+  filter!.selectItem(at:1);filter!.sendAction(filter!.action,to:filter!.target)
+  check(controls.visibleRows.compactMap(\.sessionId)==["failure"],"error filter included completed or live sessions")
+  filter!.selectItem(at:2);filter!.sendAction(filter!.action,to:filter!.target)
+  check(controls.visibleRows.compactMap(\.sessionId)==["question","live"],"live filter lost required input")
+  filter!.selectItem(at:0);filter!.sendAction(filter!.action,to:filter!.target)
+  readButton!.performClick(nil)
+  var newTurn=activityNodes;newTurn[0]["activityToken"]="turn:2"
+  check(mixed.ingest(data(newTurn,active:["failure","question","live","done"],revision:2),at:1000),"new turn decode")
+  controls.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  check(controls.visibleRows.compactMap(\.sessionId)==["question","live","done"],"new run was concealed by older read acknowledgment")
+  let recentIds=(0..<5).map{"recent-\($0)"}
+  let split=SessionMenuStore()
+  check(split.ingest(data(nodes+recentIds.map{node($0,nil,[],"completed")},history:recentIds),at:1000),"split fixture decode")
+  content.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  if !content.visibleRows.contains(where:{$0.sessionId=="child-0"}){content.toggle("parent")}
+  content.view.layoutSubtreeIfNeeded()
+  let historyFrame=content.historyList.convert(content.historyList.bounds,to:content.view)
+  check(historyFrame.minY>=0 && historyFrame.maxY<=content.view.bounds.maxY,"recent section requires scrolling the activity list")
+  check(content.historyList.rows.compactMap(\.sessionId)==recentIds,"recent history lost root slots to children")
+  let historyOffset=content.historyList.scrollView.contentView.bounds.origin
+  content.table.scrollRowToVisible(content.visibleRows.count-1);content.activeList.updateSticky();content.view.layoutSubtreeIfNeeded()
+  check(content.historyList.scrollView.contentView.bounds.origin==historyOffset,"activity scrolling moved recent history")
+  check(content.activeList.stickyRootId=="parent","expanded root scrolled away from its children")
+  content.table.selectRowIndexes(IndexSet(integer:content.visibleRows.count-1),byExtendingSelection:false)
+  for _ in 0..<20{content.handleKey(126)}
+  let selectedRect=content.table.rect(ofRow:content.table.selectedRow)
+  check(selectedRect.minY>=content.scrollView.contentView.bounds.minY+64,"keyboard selection is covered by the pinned root")
+  let collapse=descendants(content.activeList).compactMap{$0 as? NSButton}.first{button in
+   button.accessibilityLabel()=="收起会话 parent的子代理" && !button.isHidden && button.convert(button.bounds,to:content.activeList).intersects(content.activeList.bounds)
+  }
+  check(collapse != nil,"sticky root has no reachable collapse button")
+  collapse!.performClick(nil)
+  check(content.visibleRows.compactMap(\.sessionId)==["parent"],"sticky collapse did not close descendants")
+  check(content.scrollView.contentView.bounds.minY<64,"collapse left the viewport below its sole remaining root")
+  let persisted=SessionMenuViewController(availableSize:NSSize(width:420,height:600),directory:directory.path)
+  persisted.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  let persistedRead=descendants(persisted.view).compactMap{$0 as? NSButton}.first{$0.title=="一键已读"}!
+  persistedRead.performClick(nil)
+  let restored=SessionMenuViewController(availableSize:NSSize(width:420,height:600),directory:directory.path)
+  restored.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  check(restored.visibleRows.compactMap(\.sessionId)==["question","live"],"helper restart lost read acknowledgments")
+  let disabledStore=SessionMenuStore()
+  check(disabledStore.ingest(data([],active:[],revision:3,enabled:false),at:1000),"disabled snapshot decode")
+  restored.update(snapshot:disabledStore.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  restored.update(snapshot:mixed.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  check(restored.visibleRows.compactMap(\.sessionId)==["question","live"],"temporary menu disable erased read acknowledgments")
+  let restartUndo=descendants(restored.view).compactMap{$0 as? NSButton}.first{$0.title=="取消已读"}
+  check(restartUndo != nil,"helper restart discarded the undo batch while retaining hidden read entries")
+  restartUndo!.performClick(nil)
+  check(restored.visibleRows.compactMap(\.sessionId)==["failure","question","live","done"],"restored undo cannot reveal its acknowledged entries")
+  let permission=try FileManager.default.attributesOfItem(atPath:directory.appendingPathComponent("session-menu-read.json").path)[.posixPermissions] as! NSNumber
+  check(permission.intValue==0o600,"read state is not private")
+  if let target=ProcessInfo.processInfo.environment["DSH_MENU_PREVIEW"] {
+   content.view.appearance=NSAppearance(named:.darkAqua)
+   content.view.layoutSubtreeIfNeeded()
+   let bitmap=content.view.bitmapImageRepForCachingDisplay(in:content.view.bounds)!
+   content.view.cacheDisplay(in:content.view.bounds,to:bitmap)
+   try bitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:target))
+  }
   print("PASS native menu decode/bounds/stale/recovery, 400-child layout/scroll, deep tree, keyboard/accessibility, real progress and enabled lifecycle")
  }
 }

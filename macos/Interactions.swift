@@ -600,7 +600,10 @@ final class NotificationInteractions {
     }
     func menuInteractions() -> [MenuInteraction] {
         active.values.filter { !settled.contains($0.id) && ["approval", "questions"].contains($0.kind) }.sorted { $0.id < $1.id }.map {
-            let title = $0.approval?.toolName ?? ($0.body.isEmpty ? $0.displayTitle : $0.body)
+            let title: String
+            if let approval = $0.approval {
+                title = approval.toolName + " · " + (approval.command ?? approval.reason ?? $0.body)
+            } else { title = $0.body.isEmpty ? $0.displayTitle : $0.body }
             return MenuInteraction(requestId: $0.id, sessionId: $0.sessionId, kind: $0.kind,
                 title: String(title.split(whereSeparator: { $0.isNewline }).joined(separator: " ").prefix(100)),
                 canSubmit: !submitting.contains($0.id) && $0.phase != "transitioning")

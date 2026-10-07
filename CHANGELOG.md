@@ -2,6 +2,8 @@
 
 ## 0.5.0
 
+- Avoid rebuilding session rows while the menu is closed or a request submenu is tracking. Multiple approvals include the command and numbered request labels.
+
 - Add per-session menu-bar Allow once, Deny, approval details and complete question-form actions. Multiple requests use explicitly bound entries; stale, submitting and already accepted requests cannot be submitted again.
 - Scope activity to runs observed or started during the current Host connection; retain their terminal results without importing old errors or dormant pins.
 - Distinguish official user/parent/hook/environment cancellation causes from failures, crash recovery and unknown legacy stops. Use 未分组 for sessions outside registered workspaces.

@@ -11,8 +11,10 @@ func logLine(_ message:String) {}
   try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
   defer{try? FileManager.default.removeItem(at:directory)}
   let interactions=NotificationInteractions(directory:directory.path,center:nil)
-  let approval=NativeRequest(id:"approval-1",kind:"approval",sessionId:"parent",title:"安全测试",subtitle:"测试",body:"审批一",questions:nil,phase:"foreground")
-  let other=NativeRequest(id:"approval-2",kind:"approval",sessionId:"parent",title:"安全测试二",subtitle:"测试",body:"审批二",questions:nil,phase:"foreground")
+  var approval=NativeRequest(id:"approval-1",kind:"approval",sessionId:"parent",title:"安全测试",subtitle:"测试",body:"审批一",questions:nil,phase:"foreground")
+  var other=NativeRequest(id:"approval-2",kind:"approval",sessionId:"parent",title:"安全测试二",subtitle:"测试",body:"审批二",questions:nil,phase:"foreground")
+  approval.approval=NativeApproval(toolName:"shell",reason:"读取一",callId:"call-1",arguments:nil,command:"echo FIRST")
+  other.approval=NativeApproval(toolName:"shell",reason:"读取二",callId:"call-2",arguments:nil,command:"echo SECOND")
   let question=NativeRequest(id:"questions-1",kind:"questions",sessionId:"child",title:"三题测试",subtitle:"三题测试",body:"",questions:(1...3).map{NativeQuestion(id:"q\($0)",question:"选择并补充文字",header:nil,detail:nil,options:[NativeOption(label:"选项 A",description:nil)],multiSelect:false)},phase:"foreground")
   func write(_ requests:[NativeRequest],aged:Bool=false) throws {
    let snapshot=NativeSnapshot(version:1,updatedAt:Date().timeIntervalSince1970*1000-(aged ? 10000:0),requests:requests,preferences:["approval":false,"questions":false])
@@ -26,6 +28,7 @@ func logLine(_ message:String) {}
   let items=interactions.menuInteractions()
   check(items.count==3 && items.filter{$0.sessionId=="parent"}.count==2,"pending menu requests lost or session association wrong")
   let first=items.first{$0.requestId==approval.id}!,second=items.first{$0.requestId==other.id}!,questions=items.first{$0.requestId==question.id}!
+  check(first.title.contains("FIRST") && second.title.contains("SECOND") && first.title != second.title,"same-tool approvals have indistinguishable menu descriptions")
   check(first.actions==[.allow,.deny,.details] && questions.actions==[.answer],"wrong actions for request kind")
   let generation=UUID().uuidString,now=Date().timeIntervalSince1970*1000
   let raw:[String:Any]=["version":1,"generation":generation,"revision":1,"updatedAt":now,"enabled":true,"availability":"ready","activeIds":["parent"],"orphanIds":[],"historyIds":[],"omittedCount":0,"nodes":[
@@ -52,12 +55,26 @@ func logLine(_ message:String) {}
   let grouped=SessionMenuRowView(node:node,depth:8,expanded:false,stale:false,interactions:[first,second],onDisclosure:{}){item,action in calls.append(item.requestId+":"+action.rawValue)}
   layout(grouped,width:280)
   let picker=descendants(grouped).compactMap{$0 as? NSPopUpButton}.first!
+  let entries=picker.menu!.items.filter{$0.submenu != nil}
+  check(Set(entries.map{$0.title}).count==2,"approval entries lack stable disambiguators")
   let pickerRect=picker.convert(picker.bounds,to:grouped)
   check(grouped.bounds.width<=280,"action controls expanded the fixed row width")
   check(!picker.isHidden && pickerRect.minX>=0 && pickerRect.maxX<=grouped.bounds.width,"multi-request/narrow controls clipped")
   let rejectSecond=picker.menu!.items.last!.submenu!.items.first{$0.title=="拒绝"}!
   _=rejectSecond.target?.perform(rejectSecond.action,with:rejectSecond)
   check(calls.last=="approval-2:deny","multi-request action ambiguously targets first approval")
+  // A tracking menu can outlive its table cell during a timed refresh.
+  let detached:NSMenu=autoreleasepool {
+   let twin=MenuInteraction(requestId:second.requestId,sessionId:second.sessionId,kind:second.kind,title:first.title,canSubmit:true)
+   let temporary=SessionMenuRowView(node:node,depth:0,expanded:false,stale:false,interactions:[first,twin],onDisclosure:{}){item,action in calls.append(item.requestId+":"+action.rawValue)}
+   let menu=descendants(temporary).compactMap{$0 as? NSPopUpButton}.first!.menu!
+   check(Set(menu.items.filter{$0.submenu != nil}.map{$0.title}).count==2,"identical commands lack request ordinal labels")
+   return menu
+  }
+  calls.append("detached")
+  let detachedDeny=detached.items.last!.submenu!.items.first{$0.title=="拒绝"}!
+  _=detachedDeny.target?.perform(detachedDeny.action,with:detachedDeny)
+  check(calls.last=="approval-2:deny","refresh destroyed a tracking menu action target")
   let content=SessionMenuViewController(availableSize:NSSize(width:420,height:600))
   content.update(snapshot:snapshot,status:"已连接",stale:false,error:nil,interactions:items)
   content.toggle("parent");content.view.layoutSubtreeIfNeeded()

@@ -7,6 +7,7 @@ final class SessionMenuController:NSObject {
  let popover=NSPopover()
  let content:SessionMenuViewController
  private var actionError:String?,opening=false
+ private var menuTrackingDepth=0,menuObservers:[NSObjectProtocol]=[]
  init(directory:String,openSession:@escaping(String,@escaping(String?)->Void)->Void,openDesktop:@escaping()->Bool,interactions:@escaping()->[MenuInteraction]={[]},performInteraction:@escaping(MenuInteraction,MenuInteractionAction)->String?={_,_ in "请求暂不可用。"}) {
   self.directory=directory;self.openSession=openSession;self.openDesktop=openDesktop;control=SessionMenuControl(directory:directory)
   self.interactions=interactions;self.performInteraction=performInteraction
@@ -18,8 +19,13 @@ final class SessionMenuController:NSObject {
   content.onClose={[weak self] in self?.popover.performClose(nil)}
   content.onDisableMenu={[weak self] in self?.disable()}
   content.onOpenDesktop={[weak self] in guard let self=self else{return};if !self.openDesktop(){self.actionError="无法打开 DSH Desktop。";self.render()}}
+  menuObservers.append(NotificationCenter.default.addObserver(forName:NSMenu.didBeginTrackingNotification,object:nil,queue:.main){[weak self] _ in self?.menuTrackingDepth+=1})
+  menuObservers.append(NotificationCenter.default.addObserver(forName:NSMenu.didEndTrackingNotification,object:nil,queue:.main){[weak self] _ in
+   guard let self=self else{return};self.menuTrackingDepth=max(0,self.menuTrackingDepth-1)
+   if self.menuTrackingDepth==0 && self.popover.isShown {self.render()}
+  })
  }
- deinit {if let item=statusItem{NSStatusBar.system.removeStatusItem(item)}}
+ deinit {for observer in menuObservers{NotificationCenter.default.removeObserver(observer)};if let item=statusItem{NSStatusBar.system.removeStatusItem(item)}}
  func poll(at now:Double=Date().timeIntervalSince1970*1000) {
   control.poll(at:now)
   let path=(directory as NSString).appendingPathComponent("session-menu.json")
@@ -34,7 +40,7 @@ final class SessionMenuController:NSObject {
    item.button?.image?.isTemplate=true;item.button?.toolTip="DSH Notify";item.button?.target=self;item.button?.action=#selector(toggle)
    item.button?.setAccessibilityLabel("DSH Notify 会话面板")
   }
-  render(at:now)
+  if popover.isShown && menuTrackingDepth==0 {render(at:now)}
  }
  private func render(at now:Double=Date().timeIntervalSince1970*1000) {
   content.update(snapshot:store.snapshot,status:store.status(at:now),stale:store.isStale(at:now),error:actionError,interactions:interactions())

@@ -75,14 +75,16 @@ final class SessionMenuRowView:NSTableCellView {
   picker.font = .systemFont(ofSize:10);picker.addItem(withTitle:interactions.count>1 ? "处理请求（\(interactions.count)）":"处理请求")
   picker.menu?.autoenablesItems=false
   picker.setAccessibilityLabel("处理当前会话的审批或问答")
+  let callback=onInteraction
   func target(_ item:MenuInteraction,_ action:MenuInteractionAction)->MenuActionTarget {
-   let result=MenuActionTarget{[weak self] in self?.onInteraction(item,action)};actionTargets.append(result);return result
+   let result=MenuActionTarget{callback(item,action)};actionTargets.append(result);return result
   }
-  for item in interactions {
+  for (index,item) in interactions.enumerated() {
    let menu=NSMenu();menu.autoenablesItems=false
    for action in item.actions {
     let entry=NSMenuItem(title:action.title,action:#selector(MenuActionTarget.invoke),keyEquivalent:"")
-    entry.target=target(item,action);entry.isEnabled = !stale && item.enabled(action);menu.addItem(entry)
+    let handler=target(item,action);entry.target=handler;entry.representedObject=handler
+    entry.isEnabled = !stale && item.enabled(action);menu.addItem(entry)
     if interactions.count==1 {
      let button=NSButton(title:action.title,target:entry.target,action:entry.action)
      button.font = .systemFont(ofSize:10);button.bezelStyle = .rounded;button.isEnabled=entry.isEnabled
@@ -90,7 +92,7 @@ final class SessionMenuRowView:NSTableCellView {
     }
    }
    if interactions.count==1 {for entry in menu.items {menu.removeItem(entry);picker.menu?.addItem(entry)}}
-   else {let entry=NSMenuItem(title:(item.kind=="approval" ? "审批：":"问答：")+item.title,action:nil,keyEquivalent:"");entry.submenu=menu;picker.menu?.addItem(entry)}
+   else {let entry=NSMenuItem(title:(item.kind=="approval" ? "审批":"问答")+" \(index+1)："+item.title,action:nil,keyEquivalent:"");entry.submenu=menu;picker.menu?.addItem(entry)}
   }
   picker.isEnabled = !stale
   for child in [actions,picker]{controls.addSubview(child)}

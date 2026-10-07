@@ -14,6 +14,7 @@ final class MenuSessionList:NSView,NSTableViewDataSource,NSTableViewDelegate {
   super.init(frame:frame)
   let column=NSTableColumn(identifier:NSUserInterfaceItemIdentifier("session"));table.addTableColumn(column)
   table.headerView=nil;table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle;table.selectionHighlightStyle = .regular
+  table.style = .fullWidth
   table.intercellSpacing=NSSize(width:0,height:0);table.backgroundColor = .clear
   table.dataSource=self;table.delegate=self;table.target=self;table.action=#selector(clicked)
   scrollView.drawsBackground=false;scrollView.contentView.drawsBackground=false;scrollView.documentView=table

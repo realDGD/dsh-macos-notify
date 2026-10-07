@@ -119,6 +119,16 @@ final class MenuTableView:NSTableView {
  var keyHandler:((UInt16)->Bool)?
  override func keyDown(with event:NSEvent){if keyHandler?(event.keyCode) != true {super.keyDown(with:event)}}
 }
+private final class CenteredMenuButtonCell:NSButtonCell {
+ override func titleRect(forBounds rect:NSRect)->NSRect {
+  var title=super.titleRect(forBounds:rect)
+  title.origin.y=rect.midY-title.height/2
+  return title
+ }
+}
+private final class CenteredMenuButton:NSButton {
+ override class var cellClass:AnyClass? {get{CenteredMenuButtonCell.self}set{}}
+}
 final class SessionMenuViewController:NSViewController {
  let activeList=MenuSessionList(frame:.zero),historyList=MenuSessionList(frame:.zero)
  var table:MenuTableView {activeList.table}
@@ -127,7 +137,7 @@ final class SessionMenuViewController:NSViewController {
  var onOpenSession:((String)->Void)?,onDisableMenu:(()->Void)?,onOpenDesktop:(()->Void)?,onClose:(()->Void)?
  var onInteraction:((MenuInteraction,MenuInteractionAction)->Void)?
  private let connection=NSTextField(labelWithString:""),errorLabel=NSTextField(labelWithString:""),footer=NSTextField(labelWithString:"")
- private let readButton=NSButton(title:"一键已读",target:nil,action:nil),filter=NSPopUpButton(frame:.zero,pullsDown:false)
+ private let readButton=CenteredMenuButton(title:"一键已读",target:nil,action:nil),filter=NSPopUpButton(frame:.zero,pullsDown:false)
  private let activityState:MenuActivityState
  private var snapshot:MenuSnapshot?,nodes:[String:MenuNode]=[:],expanded=Set<String>(),stale=false
  private let availableSize:NSSize

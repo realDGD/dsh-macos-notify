@@ -2,6 +2,7 @@
 
 ## 0.5.0
 
+- Add per-session menu-bar Allow once, Deny, approval details and complete question-form actions. Multiple requests use explicitly bound entries; stale, submitting and already accepted requests cannot be submitted again.
 - Scope activity to runs observed or started during the current Host connection; retain their terminal results without importing old errors or dormant pins.
 - Distinguish official user/parent/hook/environment cancellation causes from failures, crash recovery and unknown legacy stops. Use 未分组 for sessions outside registered workspaces.
 - Add activity filters and reversible bulk read acknowledgment; keep live sessions and required input visible, preserve private read marks across helper restarts and reveal new turns.

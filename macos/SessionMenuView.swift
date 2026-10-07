@@ -132,6 +132,7 @@ final class SessionMenuViewController:NSViewController {
  private var snapshot:MenuSnapshot?,nodes:[String:MenuNode]=[:],expanded=Set<String>(),stale=false
  private let availableSize:NSSize
  private var activeHeight:NSLayoutConstraint!,historyHeight:NSLayoutConstraint!
+ private var errorHeight:NSLayoutConstraint!,errorSpacing:NSLayoutConstraint!,footerHeight:NSLayoutConstraint!,footerSpacing:NSLayoutConstraint!
  init(availableSize:NSSize,directory:String?=nil){self.availableSize=availableSize;activityState=MenuActivityState(directory:directory);super.init(nibName:nil,bundle:nil);loadView()}
  required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
  override func loadView() {
@@ -157,6 +158,8 @@ final class SessionMenuViewController:NSViewController {
   activeList.table.setAccessibilityLabel("活动会话列表");historyList.table.setAccessibilityLabel("最近会话列表")
   for child in [heading,gear,connection,activityHeading,readButton,filter,activeList,divider,historyHeading,historyList,errorLabel,footer]{child.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(child)}
   activeHeight=activeList.heightAnchor.constraint(equalToConstant:64);historyHeight=historyList.heightAnchor.constraint(equalToConstant:64)
+  errorHeight=errorLabel.heightAnchor.constraint(equalToConstant:0);errorSpacing=errorLabel.topAnchor.constraint(equalTo:historyList.bottomAnchor)
+  footerHeight=footer.heightAnchor.constraint(equalToConstant:0);footerSpacing=footer.topAnchor.constraint(equalTo:errorLabel.bottomAnchor)
   NSLayoutConstraint.activate([
    heading.leadingAnchor.constraint(equalTo:view.leadingAnchor,constant:14),heading.topAnchor.constraint(equalTo:view.topAnchor,constant:12),heading.heightAnchor.constraint(equalToConstant:20),
    gear.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-10),gear.topAnchor.constraint(equalTo:view.topAnchor,constant:8),gear.widthAnchor.constraint(equalToConstant:26),gear.heightAnchor.constraint(equalToConstant:26),
@@ -168,8 +171,8 @@ final class SessionMenuViewController:NSViewController {
    divider.leadingAnchor.constraint(equalTo:heading.leadingAnchor),divider.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-14),divider.topAnchor.constraint(equalTo:activeList.bottomAnchor,constant:8),divider.heightAnchor.constraint(equalToConstant:1),
    historyHeading.leadingAnchor.constraint(equalTo:heading.leadingAnchor),historyHeading.topAnchor.constraint(equalTo:divider.bottomAnchor,constant:7),historyHeading.heightAnchor.constraint(equalToConstant:20),
    historyList.leadingAnchor.constraint(equalTo:activeList.leadingAnchor),historyList.trailingAnchor.constraint(equalTo:activeList.trailingAnchor),historyList.topAnchor.constraint(equalTo:historyHeading.bottomAnchor,constant:3),historyHeight,
-   errorLabel.leadingAnchor.constraint(equalTo:heading.leadingAnchor),errorLabel.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-12),errorLabel.topAnchor.constraint(equalTo:historyList.bottomAnchor,constant:4),errorLabel.heightAnchor.constraint(equalToConstant:30),
-   footer.leadingAnchor.constraint(equalTo:heading.leadingAnchor),footer.trailingAnchor.constraint(equalTo:errorLabel.trailingAnchor),footer.topAnchor.constraint(equalTo:errorLabel.bottomAnchor,constant:2),footer.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-8),footer.heightAnchor.constraint(equalToConstant:17)])
+   errorLabel.leadingAnchor.constraint(equalTo:heading.leadingAnchor),errorLabel.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-12),errorSpacing,errorHeight,
+   footer.leadingAnchor.constraint(equalTo:heading.leadingAnchor),footer.trailingAnchor.constraint(equalTo:errorLabel.trailingAnchor),footerSpacing,footer.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-8),footerHeight])
  }
  func update(snapshot:MenuSnapshot?,status:String,stale:Bool,error:String?,interactions:[MenuInteraction]=[]) {
   self.snapshot=snapshot;self.stale=stale;nodes=Dictionary(uniqueKeysWithValues:(snapshot?.nodes ?? []).map{($0.id,$0)})
@@ -178,7 +181,10 @@ final class SessionMenuViewController:NSViewController {
   activeList.interactions=grouped;historyList.interactions=grouped
   expanded.formIntersection(Set(nodes.keys))
   connection.stringValue=status;errorLabel.stringValue=error ?? ""
-  footer.stringValue=(snapshot?.omittedCount ?? 0)>0 ? "另有 \(snapshot!.omittedCount) 条，请在 DSH 查看":"点击会话打开 DSH · 箭头展开子代理"
+  let hasError = !errorLabel.stringValue.isEmpty,hasOverflow=(snapshot?.omittedCount ?? 0)>0
+  errorLabel.isHidden = !hasError;errorHeight.constant=hasError ? 30:0;errorSpacing.constant=hasError ? 4:0
+  footer.stringValue=hasOverflow ? "另有 \(snapshot!.omittedCount) 条，请在 DSH 查看":""
+  footer.isHidden = !hasOverflow;footerHeight.constant=hasOverflow ? 17:0;footerSpacing.constant=hasOverflow ? (hasError ? 2:4):0
   rebuild()
  }
  private func rebuild() {
@@ -193,12 +199,13 @@ final class SessionMenuViewController:NSViewController {
   readButton.title=activityState.canUndo ? "取消已读":"一键已读"
   readButton.isEnabled=activityState.canUndo || ids.contains{id in !activityState.isRead(id,nodes:nodes) && !activityState.branch(id,nodes:nodes).contains{$0.state.isLive}}
   // Reserve space for both lists; neither must be reached by scrolling the other.
-  let budget=max(0,min(600,availableSize.height)-170)
+  let overhead=117+errorSpacing.constant+errorHeight.constant+footerSpacing.constant+footerHeight.constant
+  let budget=max(0,min(600,availableSize.height)-overhead)
   var a=min(activeList.naturalHeight,budget*0.62),h=min(historyList.naturalHeight,budget*0.38)
   let spare=budget-a-h
   if spare>0{a+=min(spare,max(0,activeList.naturalHeight-a));h=min(historyList.naturalHeight,budget-a)}
   activeHeight.constant=a;historyHeight.constant=h
-  view.setFrameSize(NSSize(width:min(420,availableSize.width),height:min(availableSize.height,a+h+170)))
+  view.setFrameSize(NSSize(width:min(420,availableSize.width),height:min(availableSize.height,a+h+overhead)))
   view.layoutSubtreeIfNeeded();activeList.updateScrollChrome();historyList.updateScrollChrome();activeList.updateSticky();historyList.updateSticky()
  }
  func toggle(_ id:String){guard nodes[id] != nil else{return};if expanded.contains(id){expanded.remove(id)}else{expanded.insert(id)};rebuild()}

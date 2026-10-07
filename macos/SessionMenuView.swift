@@ -62,7 +62,7 @@ final class SessionMenuRowView:NSTableCellView {
   let textEnd=node.progress==nil ? trailingAnchor:progress.leadingAnchor
   NSLayoutConstraint.activate([
    disclosure.leadingAnchor.constraint(equalTo:leadingAnchor,constant:4+offset),disclosure.widthAnchor.constraint(equalToConstant:disclosureWidth),disclosure.topAnchor.constraint(equalTo:topAnchor,constant:5),disclosure.heightAnchor.constraint(equalToConstant:32),
-   dot.leadingAnchor.constraint(equalTo:disclosure.trailingAnchor,constant:disclosureWidth==0 ? 0:2),dot.widthAnchor.constraint(equalToConstant:8),dot.heightAnchor.constraint(equalToConstant:8),dot.topAnchor.constraint(equalTo:topAnchor,constant:12),
+   dot.leadingAnchor.constraint(equalTo:disclosure.trailingAnchor,constant:disclosureWidth==0 ? 0:2),dot.widthAnchor.constraint(equalToConstant:8),dot.heightAnchor.constraint(equalToConstant:8),dot.centerYAnchor.constraint(equalTo:centerYAnchor),
    title.leadingAnchor.constraint(equalTo:dot.trailingAnchor,constant:6),title.trailingAnchor.constraint(equalTo:textEnd,constant:-6),title.topAnchor.constraint(equalTo:topAnchor,constant:5),title.heightAnchor.constraint(equalToConstant:17),
    preview.leadingAnchor.constraint(equalTo:title.leadingAnchor),preview.trailingAnchor.constraint(equalTo:textEnd,constant:-6),preview.topAnchor.constraint(equalTo:title.bottomAnchor,constant:2),preview.heightAnchor.constraint(equalToConstant:16),
    status.leadingAnchor.constraint(equalTo:title.leadingAnchor),status.trailingAnchor.constraint(equalTo:textEnd,constant:-6),status.topAnchor.constraint(equalTo:preview.bottomAnchor,constant:2),status.heightAnchor.constraint(equalToConstant:14),

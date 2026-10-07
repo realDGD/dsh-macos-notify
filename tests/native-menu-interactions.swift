@@ -51,6 +51,7 @@ func logLine(_ message:String) {}
   let allow=descendants(row).compactMap{$0 as? NSButton}.first{$0.title=="允许本次"}!
   let deny=descendants(row).compactMap{$0 as? NSButton}.first{$0.title=="拒绝"}!
   let allowRect=allow.convert(allow.bounds,to:row),denyRect=deny.convert(deny.bounds,to:row)
+  check(allowRect.size==NSSize(width:76,height:22) && denyRect.size==NSSize(width:76,height:22),"custom approval frames include native bezel alignment margins: \(allowRect) \(denyRect)")
   check(abs(allowRect.midX-denyRect.midX)<1 && abs(allowRect.midY-denyRect.midY)>18,"approval buttons are not vertically stacked")
   check(!descendants(row).compactMap{$0 as? NSButton}.contains{$0.title=="查看详情"},"menu retains redundant details button")
   check(!allowRect.intersects(row.title.frame) && !denyRect.intersects(row.preview.frame),"stacked approvals cover session text: \(allowRect) \(denyRect) vs \(row.title.frame) \(row.preview.frame)")

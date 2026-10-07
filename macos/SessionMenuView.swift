@@ -26,6 +26,9 @@ final class MenuProgressView:NSView {
  }
 }
 private final class MenuApprovalButton:NSButton {
+ // This custom drawing uses the whole bounds. Native rounded-bezel alignment
+ // margins on older AppKit would enlarge a 76x22 control to 90x34.
+ override var alignmentRectInsets:NSEdgeInsets {NSEdgeInsets(top:0,left:0,bottom:0,right:0)}
  override func draw(_ dirtyRect:NSRect) {
   let color=bezelColor ?? MenuStatusPalette.green
   let shape=NSBezierPath(roundedRect:bounds.insetBy(dx:1,dy:1),xRadius:6,yRadius:6)

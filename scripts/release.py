@@ -42,7 +42,7 @@ def check_path(name):
     parts = PurePosixPath(name).parts
     if not parts or name.startswith("/") or "\\" in name or ".." in parts:
         raise ReleaseError("Unsafe archive path")
-    if any(p in PRIVATE_NAMES or p.startswith(".env") or p.endswith((".app", ".icns", ".log", ".tgz", ".tar", ".tar.gz", ".zip", ".7z", ".dmg", ".pkg", ".p12")) for p in parts):
+    if any(p in PRIVATE_NAMES or p.startswith(".env") or p.endswith((".app", ".icns", ".pyc", ".log", ".tgz", ".tar", ".tar.gz", ".zip", ".7z", ".dmg", ".pkg", ".p12")) for p in parts):
         raise ReleaseError("Private or generated artifact in distribution")
 
 

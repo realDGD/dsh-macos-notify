@@ -100,6 +100,19 @@ class DistributionTests(unittest.TestCase):
             with self.assertRaises(release.ReleaseError):
                 release.audit_repository(root)
 
+    def test_history_audit_catches_private_path_renamed_without_content_change(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            def git(*args):
+                return subprocess.check_output(["git", "-c", "user.name=Release Test", "-c",
+                    "user.email=release-test@users.noreply.github.com", *args], cwd=root, stderr=subprocess.PIPE)
+            git("init", "-q")
+            (root / ".env").write_text("non-pattern private setting\n")
+            git("add", "."); git("commit", "-qm", "Private filename fixture")
+            git("mv", ".env", "README.md"); git("commit", "-qm", "Same blob, public filename")
+            with self.assertRaises(release.ReleaseError):
+                release.audit_repository(root)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -92,6 +92,13 @@ def check_archive(path):
 
 
 def audit_repository(root=ROOT):
+    # Object enumeration deduplicates blobs and returns only one representative name.
+    # Inspect every commit's root tree, including deleted/renamed private filenames.
+    trees = set(run("git", "log", "--all", "--format=%T", cwd=root).splitlines())
+    for tree in sorted(trees):
+        for entry in run("git", "ls-tree", "-rz", "--full-tree", tree.decode("ascii"), cwd=root).split(b"\0"):
+            if entry:
+                check_path(entry.split(b"\t", 1)[1].decode("utf-8"))
     objects = run("git", "rev-list", "--objects", "--all", cwd=root).splitlines()
     ids = []
     for line in objects:

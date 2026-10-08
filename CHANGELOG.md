@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.5.0
+## 0.5.0 (unreleased)
+
+- Produce a plugin installation package and a separate complete source archive with exact-commit manifest and SHA-256 checksums. Normalize archive ownership/timestamps and audit all reachable Git history plus the actual archive contents before distribution.
+- Document independent source installation, safe upgrades/uninstall and the distinction between automated evidence and pending live menu acceptance. Do not advertise an unpublished stable tag.
 
 - Size short approval command/argument previews to their text and group related controls more tightly, keeping the context disclosure visible at the default window height. Long previews and narrow windows remain scrollable.
 - Normalize bundled context-document URLs before navigation checks so expanded question/approval Markdown loads from the installed app instead of leaving a blank pane. Run the WebKit regression from a real application bundle.

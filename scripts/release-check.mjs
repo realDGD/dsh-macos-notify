@@ -20,5 +20,5 @@ for (const path of paths) {
   const content = readFileSync(path, 'utf8')
   for (const pattern of forbidden) assert(!pattern.test(content), `Private material in ${path}`)
 }
-for (const path of files) assert(!/(?:\.app(?:\/|$)|\.icns$|\.local\/|desktop-jump-status|native-actions-ledger|legacy-applet|(?:^|\/)(?:session-menu\.json|menu-commands|menu-results)(?:\/|$))/.test(path), `Private package artifact: ${path}`)
+for (const path of files) assert(!/(?:\.app(?:\/|$)|\.icns$|\.pyc$|(?:^|\/)__pycache__(?:\/|$)|\.local\/|desktop-jump-status|native-actions-ledger|legacy-applet|(?:^|\/)(?:session-menu\.json|menu-commands|menu-results)(?:\/|$))/.test(path), `Private package artifact: ${path}`)
 console.log(`Release checks passed: ${paths.length} source files, ${files.size} package files, no forbidden private artifacts.`)

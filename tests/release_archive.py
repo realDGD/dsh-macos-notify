@@ -6,6 +6,8 @@ import tarfile
 import tempfile
 import unittest
 import subprocess
+import json
+import os
 from pathlib import Path
 
 SPEC = importlib.util.spec_from_file_location("release", Path(__file__).resolve().parents[1] / "scripts/release.py")
@@ -112,6 +114,21 @@ class DistributionTests(unittest.TestCase):
             git("mv", ".env", "README.md"); git("commit", "-qm", "Same blob, public filename")
             with self.assertRaises(release.ReleaseError):
                 release.audit_repository(root)
+
+    def test_plugin_allowlist_excludes_generated_python_cache(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = json.loads((release.ROOT / "package.json").read_text())
+            (root / "package.json").write_text(json.dumps({"name":"notify-package-fixture", "version":"1.0.0", "files":config['files']}))
+            (root / ".gitignore").write_text((release.ROOT / ".gitignore").read_text())
+            (root / "scripts/__pycache__").mkdir(parents=True)
+            (root / "scripts/tool.py").write_text("print('public source')\n")
+            (root / "scripts/__pycache__/tool.cpython-311.pyc").write_bytes(b"generated cache")
+            npm = os.environ.get("DSH_RELEASE_TEST_NPM", "npm")
+            packed = subprocess.check_output([npm,"pack","--dry-run","--ignore-scripts","--json"], cwd=root, stderr=subprocess.PIPE)
+            paths = [f['path'] for f in json.loads(packed)[0]['files']]
+            self.assertIn("scripts/tool.py", paths)
+            self.assertFalse(any('__pycache__' in path or path.endswith('.pyc') for path in paths), paths)
 
 
 if __name__ == "__main__":

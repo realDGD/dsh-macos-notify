@@ -21,6 +21,8 @@
     "README.md",
     "LICENSE",
     "docs/compatibility.md",
+    "docs/install.md",
+    "docs/release.md",
     "THIRD_PARTY.md",
     "CHANGELOG.md",
     "npm-shrinkwrap.json"
@@ -40,7 +42,10 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "test:native": "bash macos/test-layout.sh",
-    "check:release": "node scripts/release-check.mjs"
+    "check:release": "node scripts/release-check.mjs",
+    "test:release": "python3 -m unittest discover -s tests -p 'release_*.py'",
+    "audit:privacy": "python3 scripts/release.py --audit",
+    "package:release": "python3 scripts/release.py"
   },
   "engines": {
     "node": ">=22"

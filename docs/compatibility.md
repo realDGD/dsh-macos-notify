@@ -29,7 +29,7 @@ The current helper coordinates one local active DSH profile/state namespace. Mul
 - Public GitHub installation `github:realDGD/dsh-macos-notify#v0.2.0` succeeded through the official package manager in a second isolated profile; no model or command was run.
 - Downloaded the published release tarball and SHA256SUMS; its checksum matched. Archive ownership headers are normalized, and local state, session identifiers, machine paths and official binary/icon assets are excluded.
 - [Release-tag CI](https://github.com/realDGD/dsh-macos-notify/actions/runs/37544661825) passed Node 22, Node 24 and the hosted macOS native regression/build/signature jobs. These hosted checks do not certify actual notification behavior on every OS/architecture.
-- The renamed production helper posted the new safe test notification. The new user-click acceptance is still pending; prior real Allow/Deny/question callbacks and verified session navigation belong to the earlier native implementation.
+- At the v0.2.0 release checkpoint, the renamed helper posted the safe notification and its new user-click check was pending. Later native callback/session-selection evidence is separate from that historical release checkpoint; it does not imply current menu acceptance.
 
 ## v0.3.0 rendering checks
 
@@ -55,7 +55,13 @@ The current helper coordinates one local active DSH profile/state namespace. Mul
 
 The menu uses the official 0.2.0-rc.2 session and format-catalog peer packages to fold the same retained observation; `sessionPersistence.stat` supplies lightweight revision tokens. Cache identity includes the persistence instance and session revision. Unchanged histories do not exceed the SDK’s prepared-cache capacity with repeated full reads, and no second uncancellable surface read is held across disposal. Local source installs must run `npm ci --ignore-scripts`; DSH package installs resolve the declared peer packages.
 
-## v0.5.0 activity semantics
+## v0.5.0 development status
+
+The current development helper is Build 26. Node regressions, full native tests, a source build targeting macOS 13, signature checks and exact-revision CI passed for the implementation. On the local test machine, the expanded context component displayed dark Markdown tables/formulas/code correctly, and the approval context disclosure remained visible at the default window size and reachable in a smaller window. The user also confirmed the system notification's official icon. These are specific checks, not certification across every supported OS.
+
+**Still pending before a stable 0.5.0 release:** production menu expand/collapse, actual recent-session click with matching authenticated Desktop acknowledgement, and the remaining menu-to-question draft/request checks. Package verification cannot replace these live checks. See [release procedure](release.md).
+
+### Activity semantics
 
 Activity is connection-local. Existing running/waiting sessions are captured at connection; official live turn/start events capture even runs ending between refresh ticks. Historical errors and idle pins are not activity. Pin order applies within tracked activity. Recent history keeps five roots after excluding tracked activity; child sessions never occupy a root-history slot. Read/filter controls are removed, and legacy private read marks are retained but ignored. Cancellation causes remain separate from actual interrupted/error/max-tokens results, including unknown legacy causes. The one-local-Host boundary and existing size/refresh bounds still apply.
 

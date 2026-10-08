@@ -38,11 +38,11 @@ Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's C
 
 3. In DSH Desktop, open the left sidebar’s **Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
 
-   A GitHub installation is also supported by DSH's package installer. Enter `github:realDGD/dsh-macos-notify#v0.5.0`, then install the native helper separately from the matching checkout. Existing JavaScript is committed; no package-install build hook runs.
+   The current `0.5.0` development version is available as `github:realDGD/dsh-macos-notify#main`. To freeze a verified revision, replace `main` with its full commit SHA and build the helper from the same revision. `v0.5.0` is not published yet. Existing JavaScript is committed; no package-install build hook runs.
 
 4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it. The test status becomes confirmed only after Desktop verifies the target session; queueing or macOS acceptance alone does not prove a visible banner or successful navigation.
 
-For CLI installations the equivalent plugin step is `dsh plugin --profile <your-profile> add <path-to-checkout>`. Desktop users do not need to install another npm DSH executable. A versioned `.tgz` source package in GitHub Releases contains the same helper build/installation scripts.
+For CLI installations the equivalent plugin step is `dsh plugin --profile <your-profile> add <path-to-checkout>`. Desktop users do not need to install another npm DSH executable. The plugin `.tgz` contains runtime/helper sources and install scripts; the separate `-source.tar.gz` contains the complete tracked repository, tests and CI. See [installation, upgrade and recovery](docs/install.md) and [release artifacts and verification](docs/release.md). Published versions are listed in [GitHub Releases](https://github.com/realDGD/dsh-macos-notify/releases); the current development version should not be mistaken for an accepted stable release.
 
 ## Upgrade
 
@@ -91,14 +91,18 @@ Task aggregation waits for descendant runs observed by the active plugin. A newl
 ## Development
 
 ```sh
-npm ci
+npm ci --ignore-scripts
 npm test
 npm run test:native     # macOS only; real AppKit components
 npm run check:release
 npm pack --dry-run
+# Maintainers only; Python 3.9+ (standard library):
+npm run test:release
+npm run audit:privacy
+npm run package:release -- --output dist/release
 ```
 
-Node tests use the pinned DSH Cordis dependency and do not silently skip lifecycle tests. To verify against a particular installed Desktop artifact, set `DSH_CORDIS_MODULE` to that artifact's Cordis module. Public CI checks Node versions, native compilation/layout and package/privacy completeness. Real macOS notification acceptance and Desktop session selection remain separate live checks.
+Node tests use the pinned DSH Cordis dependency and do not silently skip lifecycle tests. Use a clone or the full source archive to run the complete test suite. Python is used only by maintainers' release tooling, not by the plugin or helper. To verify against a particular installed Desktop artifact, set `DSH_CORDIS_MODULE` to that artifact's Cordis module. Public CI checks Node versions, native compilation/layout and package/privacy completeness. Real macOS notification acceptance and Desktop session selection remain separate live checks.
 
 Question/choice labels use native Markdown text formatting. The expanded context pane uses bundled, offline Markdown and KaTeX rendering for headings, lists, quotes, tables, code and formulas (`$…$`, `$$…$$`, `\(...\)`, `\[…\]`). Long context stays fully scrollable; long table cells wrap. A wide formula has its own scroll area so it remains readable. Shell/JSON have semantic colors; other code blocks remain monospaced. Remote images are shown as text placeholders, raw HTML is inert, and only explicitly clicked HTTP(S) links open externally.
 

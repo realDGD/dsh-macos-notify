@@ -31,3 +31,37 @@ jobs:
       - run: npm run test:native
       - run: bash macos/build.sh "$RUNNER_TEMP/DSH Notify.app"
       - run: codesign --verify --deep --strict "$RUNNER_TEMP/DSH Notify.app"
+  distribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm ci --ignore-scripts
+      - run: npm run test:release
+      - run: npm run check:release
+      - run: npm run audit:privacy
+      - run: npm run package:release -- --output "$RUNNER_TEMP/distribution"
+      - name: Verify final archives and test extracted complete source
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/distribution"
+          sha256sum -c SHA256SUMS
+          mkdir "$RUNNER_TEMP/extracted"
+          tar -xzf dsh-macos-notify-*-source.tar.gz -C "$RUNNER_TEMP/extracted"
+          cd "$RUNNER_TEMP/extracted"/dsh-macos-notify-*/
+          npm ci --ignore-scripts
+          npm test
+          npm run test:release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-distribution
+          path: ${{ runner.temp }}/distribution/*
+          if-no-files-found: error

@@ -102,6 +102,25 @@ class DistributionTests(unittest.TestCase):
             with self.assertRaises(release.ReleaseError):
                 release.audit_repository(root)
 
+    def test_history_audit_accepts_github_web_identity_and_rejects_personal_email(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            def git(*args, committer="release-test@users.noreply.github.com"):
+                env = dict(os.environ, GIT_COMMITTER_NAME="Release Test", GIT_COMMITTER_EMAIL=committer)
+                return subprocess.check_output(["git", "-c", "user.name=Release Test", "-c",
+                    "user.email=release-test@users.noreply.github.com", *args], cwd=root,
+                    stderr=subprocess.PIPE, env=env)
+            git("init", "-q")
+            (root / "README.md").write_text("public\n")
+            git("add", ".")
+            # GitHub records its own identity as committer for web-interface edits.
+            git("commit", "-qm", "Edit through the GitHub web interface", committer="noreply@github.com")
+            self.assertEqual(release.audit_repository(root)["commitEmailPolicy"], "github-noreply")
+            git("commit", "-q", "--amend", "-m", "Committer leaks a personal address",
+                committer="person@example.com")
+            with self.assertRaises(release.ReleaseError):
+                release.audit_repository(root)
+
     def test_history_audit_catches_private_path_renamed_without_content_change(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

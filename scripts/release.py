@@ -51,6 +51,12 @@ def check_content(data, label):
         raise ReleaseError("Private material detected in " + label)
 
 
+def is_noreply_email(email):
+    # GitHub's own identity is the committer it records for edits made through the
+    # web interface and for pull-request merge refs; it exposes no personal address.
+    return email.endswith("@users.noreply.github.com") or email == "noreply@github.com"
+
+
 def read_entries(data):
     entries, seen = [], set()
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as archive:
@@ -124,7 +130,7 @@ def audit_repository(root=ROOT):
         if header[1] == b"blob":
             blobs += 1
     emails = set(run("git", "log", "--all", "--format=%ae%n%ce", cwd=root).decode().splitlines())
-    if any(not email.endswith("@users.noreply.github.com") for email in emails):
+    if any(not is_noreply_email(email) for email in emails):
         raise ReleaseError("Git history contains a non-noreply commit email; review before sharing")
     return {"commits": int(run("git", "rev-list", "--all", "--count", cwd=root)), "blobs": blobs,
             "commitEmailPolicy": "github-noreply", "findings": 0}

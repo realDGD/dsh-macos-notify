@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Distribution
+
+- Accept GitHub's own `noreply@github.com` committer identity in the history audit. Web-interface edits, suggestion commits and pull-request merge refs no longer fail the privacy gate, while personal commit addresses are still rejected.
+
 ## 0.5.0 — 2026-10-09
 
 ### Draft lifecycle

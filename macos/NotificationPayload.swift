@@ -9,7 +9,7 @@ struct Payload {
 
     static let defaultTitle = "DSH Harness"
     static let defaultSubtitle = ""
-    static let defaultBody = "任务完成 — 点我回到会话"
+    static var defaultBody: String { L("任务完成 — 点我回到会话") }
 }
 
 /// 解析 pending.txt 内容。非法（含写了一半）返回 nil，调用方会等待重试。

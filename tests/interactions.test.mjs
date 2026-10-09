@@ -64,6 +64,21 @@ const answer = { answers: [
   { id: 'q3', selected: [], custom: 'Third answer' },
 ] }
 
+test('untitled approval fallback uses Host language without changing request data', check, async t => {
+  const f = await fixture(t, 'approval/request', undefined, (_, request) => {
+    request.agent.session.header = {}
+    delete request.toolName
+    request.reason = '用户原文 {0}'
+  })
+  f.pending.catch(() => {})
+  const [notice] = f.state().requests
+  assert.equal(notice?.sessionTitle, 'Untitled')
+  assert.equal(notice?.approval.toolName, 'Action')
+  assert.equal(notice?.approval.reason, '用户原文 {0}')
+  f.official.resolve('rejected')
+  assert.equal(await f.pending, 'rejected')
+})
+
 test('approval details use the exact call and its preceding context, not a later command or message', check, async t => {
   const f = await fixture(t, 'approval/request', undefined, (ctx, request) => {
     ctx.provide('sessionTitle', { get: () => ({ title: '真实会话名称' }) })

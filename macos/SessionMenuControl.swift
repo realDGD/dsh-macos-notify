@@ -16,7 +16,7 @@ final class SessionMenuControl {
    try data.write(to:URL(fileURLWithPath:file),options:.atomic)
    try manager.setAttributes([.posixPermissions:0o600],ofItemAtPath:file)
    pending[id]=Pending(createdAt:now,enabled:enabled,completion:completion)
-  } catch {completion("未能发送菜单栏设置，请在 DSH 设置中重试。")}
+  } catch {completion(L("未能发送菜单栏设置，请在 DSH 设置中重试。"))}
  }
  func poll(at now:Double=Date().timeIntervalSince1970*1000) {
   for (id,item) in pending {
@@ -26,11 +26,11 @@ final class SessionMenuControl {
       result.commandId==id,result.kind=="set-menu-enabled",result.completedAt.isFinite,
       result.completedAt>=item.createdAt,result.completedAt<=now+10000,
       ["accepted","invalid","failed","stale"].contains(result.status) {
-    if result.status != "accepted" {pending.removeValue(forKey:id)?.completion("DSH 未接受菜单栏设置，请重试。");continue}
+    if result.status != "accepted" {pending.removeValue(forKey:id)?.completion(L("DSH 未接受菜单栏设置，请重试。"));continue}
     if result.enabled==item.enabled {pending.removeValue(forKey:id)?.completion(nil);continue}
    }
    if now-item.createdAt>15000 {
-    pending.removeValue(forKey:id)?.completion("未确认设置已保存，请检查 DSH 连接后重试。")
+    pending.removeValue(forKey:id)?.completion(L("未确认设置已保存，请检查 DSH 连接后重试。"))
     try? FileManager.default.removeItem(atPath:(directory as NSString).appendingPathComponent("menu-commands/"+id+".json"))
    }
   }

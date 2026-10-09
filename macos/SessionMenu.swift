@@ -8,9 +8,10 @@ final class SessionMenuController:NSObject {
  private var iconView:MenuIconView?
  let popover=NSPopover()
  let content:SessionMenuViewController
- private var actionError:String?,opening=false
+ private var actionError:String? {didSet{renderActionError=actionError.map(UILocalization.translated)}}
+ private var renderActionError:(()->String)?,opening=false
  private var menuTrackingDepth=0,menuObservers:[NSObjectProtocol]=[]
- init(directory:String,openSession:@escaping(String,@escaping(String?)->Void)->Void,openDesktop:@escaping()->Bool,interactions:@escaping()->[MenuInteraction]={[]},performInteraction:@escaping(MenuInteraction,MenuInteractionAction)->String?={_,_ in "请求暂不可用。"}) {
+ init(directory:String,openSession:@escaping(String,@escaping(String?)->Void)->Void,openDesktop:@escaping()->Bool,interactions:@escaping()->[MenuInteraction]={[]},performInteraction:@escaping(MenuInteraction,MenuInteractionAction)->String?={_,_ in L("请求暂不可用。")}) {
   self.directory=directory;self.openSession=openSession;self.openDesktop=openDesktop;control=SessionMenuControl(directory:directory)
   self.interactions=interactions;self.performInteraction=performInteraction
   let screen=NSScreen.main?.visibleFrame.size ?? NSSize(width:420,height:600)
@@ -24,7 +25,7 @@ final class SessionMenuController:NSObject {
    self.popover.contentSize=size
   }
   content.onDisableMenu={[weak self] in self?.disable()}
-  content.onOpenDesktop={[weak self] in guard let self=self else{return};if !self.openDesktop(){self.actionError="无法打开 DSH Desktop。";self.render()}}
+  content.onOpenDesktop={[weak self] in guard let self=self else{return};if !self.openDesktop(){self.actionError=L("无法打开 DSH Desktop。");self.render()}}
   menuObservers.append(NotificationCenter.default.addObserver(forName:NSMenu.didBeginTrackingNotification,object:nil,queue:.main){[weak self] _ in self?.menuTrackingDepth+=1})
   menuObservers.append(NotificationCenter.default.addObserver(forName:NSMenu.didEndTrackingNotification,object:nil,queue:.main){[weak self] _ in
    guard let self=self else{return};self.menuTrackingDepth=max(0,self.menuTrackingDepth-1)
@@ -46,14 +47,14 @@ final class SessionMenuController:NSObject {
     let icon=MenuIconView(frame:button.bounds);icon.autoresizingMask=[.width,.height];button.addSubview(icon);iconView=icon
    }
    item.button?.toolTip="DSH Notify";item.button?.target=self;item.button?.action=#selector(toggle)
-   item.button?.setAccessibilityLabel("DSH Notify 会话面板")
+   if let button=item.button { uiAccessibility(button,L("DSH Notify 会话面板")) }
   }
   iconState.update(store.snapshot?.cohort,generation:store.snapshot?.generation,stale:store.isStale(at:now) || store.snapshot?.availability != "ready")
   iconView?.update(iconState.appearance)
   if popover.isShown && menuTrackingDepth==0 {render(at:now)}
  }
  private func render(at now:Double=Date().timeIntervalSince1970*1000) {
-  content.update(snapshot:store.snapshot,status:store.status(at:now),stale:store.isStale(at:now),error:actionError,interactions:interactions())
+  content.update(snapshot:store.snapshot,status:store.status(at:now),stale:store.isStale(at:now),error:renderActionError?(),interactions:interactions())
  }
  @objc private func toggle() {
   if popover.isShown{popover.performClose(nil);return}
@@ -71,7 +72,7 @@ final class SessionMenuController:NSObject {
   guard !store.isStale(at:now),store.snapshot?.nodes.contains(where:{$0.id==item.sessionId})==true,
         let current=interactions().first(where:{$0.requestId==item.requestId && $0.sessionId==item.sessionId && $0.kind==item.kind}),
         current.actions.contains(action),current.enabled(action) else {
-   actionError="请求已失效或正在提交，请等待连接和菜单刷新。";render(at:now);return
+   actionError=L("请求已失效或正在提交，请等待连接和菜单刷新。");render(at:now);return
   }
   actionError=performInteraction(current,action)
   if actionError==nil && (action == .answer || action == .details){popover.performClose(nil)}

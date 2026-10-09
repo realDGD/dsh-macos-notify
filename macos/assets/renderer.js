@@ -3,8 +3,9 @@
   'use strict'
   const md = root.markdownit({ html: false, linkify: true, breaks: true, typographer: false })
   const escape = md.utils.escapeHtml
+  const T = source => root.DSHUITranslations?.[source] || source
   md.validateLink = url => /^https?:\/\//i.test(url)
-  md.renderer.rules.image = (tokens, index) => '<span class="image-placeholder">[图片：' + escape(tokens[index].content || '未加载') + ']</span>'
+  md.renderer.rules.image = (tokens, index) => '<span class="image-placeholder">[' + escape(T('图片：')) + escape(tokens[index].content || T('未加载')) + ']</span>'
   md.renderer.rules.link_open = (tokens, index, options, env, self) => {
     tokens[index].attrSet('rel', 'noreferrer noopener')
     return self.renderToken(tokens, index, options)
@@ -16,7 +17,7 @@
         maxExpand: 500, maxSize: 20, strict: 'ignore', output: 'htmlAndMathml',
       })
     } catch (_) {
-      return '<code class="math-error" title="公式无法渲染，显示原文">' + escape(source) + '</code>'
+      return '<code class="math-error" title="' + escape(T('公式无法渲染，显示原文')) + '">' + escape(source) + '</code>'
     }
   }
   function isEscaped(source, position) {

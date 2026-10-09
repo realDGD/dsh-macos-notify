@@ -2,6 +2,7 @@ import Cocoa
 import CryptoKit
 @main @MainActor struct NativeSessionMenuTests {
  static func main() throws {
+  UILocalization.set("zh")
   NSApplication.shared.setActivationPolicy(.prohibited)
   func check(_ value:Bool,_ message:String){if !value{print("FAIL "+message);exit(1)}}
   let generation=UUID().uuidString
@@ -112,7 +113,7 @@ import CryptoKit
   let selectedRect=content.table.rect(ofRow:content.table.selectedRow)
   check(selectedRect.minY>=content.scrollView.contentView.bounds.minY+64,"keyboard selection is covered by the pinned root")
   let collapse=descendants(content.activeList).compactMap{$0 as? NSButton}.first{button in
-   button.accessibilityLabel()=="收起会话 parent的子代理" && !button.isHidden && button.convert(button.bounds,to:content.activeList).intersects(content.activeList.bounds)
+   button.accessibilityLabel()=="收起会话 parent的子智能体" && !button.isHidden && button.convert(button.bounds,to:content.activeList).intersects(content.activeList.bounds)
   }
   check(collapse != nil,"sticky root has no reachable collapse button")
   collapse!.performClick(nil)
@@ -238,6 +239,17 @@ import CryptoKit
   sections.update(snapshot:few.snapshot,status:"DSH 已连接",stale:false,error:nil);sections.view.layoutSubtreeIfNeeded()
   check(sectionButton("展开活动会话")==nil && sectionButton("展开最近会话")==nil && sectionButton("收起最近会话")==nil,"short sections retain useless expansion controls")
   check(sections.activeList.table.frame.height<=sections.activeList.scrollView.contentView.bounds.height+1,"fitting rows retain phantom scrollable space")
-  print("PASS native menu decode/bounds/stale/recovery, 400-child arrow navigation, fixed wheel, deep tree, keyboard/accessibility, real progress, section expansion and enabled lifecycle")
+  var fallback=node("fallback");fallback["workspaceTitle"]="未分组";fallback["workspaceUnassigned"]=true;fallback["sessionTitle"]="未命名会话";fallback["sessionUntitled"]=true;fallback["preview"]="无文字输入";fallback["previewKind"]="empty"
+  var literal=node("literal");literal["workspaceTitle"]="未分组";literal["sessionTitle"]="未命名会话";literal["preview"]="无文字输入"
+  let languageStore=SessionMenuStore();check(languageStore.ingest(data([fallback,literal],active:["fallback","literal"]),at:1000),"language provenance fixture decode")
+  UILocalization.set("en")
+  sections.update(snapshot:languageStore.snapshot,status:languageStore.status(at:1000),stale:false,error:nil)
+  let localized=languageStore.snapshot!.nodes.first{$0.id=="fallback"}!,raw=languageStore.snapshot!.nodes.first{$0.id=="literal"}!
+  check(localized.title=="Ungrouped · Untitled" && localized.displayPreview=="No text input","synthetic menu fallbacks not localized")
+  check(raw.title=="未分组 · 未命名会话" && raw.displayPreview=="无文字输入","actual names/content matching UI keys were translated")
+  check(sections.activeList.table.accessibilityLabel()=="Active session list" && sections.historyList.table.accessibilityLabel()=="Recent session list","existing list accessibility did not switch live")
+  UILocalization.set("zh")
+  check(sections.activeList.table.accessibilityLabel()=="活动会话列表","accessibility did not switch back")
+  print("PASS native menu decode/bounds/stale/recovery, 400-child arrow navigation, fixed wheel, deep tree, keyboard/accessibility, real progress, section expansion, language provenance and enabled lifecycle")
  }
 }

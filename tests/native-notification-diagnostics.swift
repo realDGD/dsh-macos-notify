@@ -13,6 +13,10 @@ import Foundation
         check(payload("test", "../outside")?.testId == nil, "unsafe identity retained")
         check(parsePayload("http://localhost/?session=test")?.testId == nil, "legacy URL marked as test")
         check(parsePayload("{broken") == nil, "partial JSON accepted")
+        UILocalization.set("en")
+        check(parsePayload("http://localhost/")?.body == "Task completed — return to session", "English payload fallback")
+        UILocalization.set("zh")
+        check(parsePayload("http://localhost/")?.body == "任务完成 — 点我回到会话", "Payload fallback must switch after first read")
         let manager = FileManager.default
         let directory = manager.temporaryDirectory.appendingPathComponent("dsh-diagnostics-" + UUID().uuidString)
         defer { try? manager.removeItem(at: directory) }

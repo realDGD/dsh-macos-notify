@@ -1,6 +1,7 @@
 import Foundation
 @main struct NativeMenuControlTests {
  static func main() throws {
+  UILocalization.set("zh")
   let manager=FileManager.default,directory=manager.temporaryDirectory.appendingPathComponent("menu-control-"+UUID().uuidString)
   defer {try? manager.removeItem(at:directory)}
   let control=SessionMenuControl(directory:directory.path)

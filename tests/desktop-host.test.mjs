@@ -52,7 +52,7 @@ function host(t, events = false) {
   const ctx = { get: name => name === 'connection' ? connection : null }
   if (events) Object.assign(ctx, { on: (name, fn) => hooks.set(name, fn), effect: fn => cleanups.push(fn()) })
   apply(ctx, { stateDir: dir })
-  assert.equal(routes.size, 9, '宿主应注册已认证的跳转 API 路由')
+  assert.equal(routes.size, 10, '宿主应注册已认证的跳转 API 路由')
   const send = async (endpoint, payload, envelope = {}) => {
     const method = 'dsh-macos-notify/' + endpoint
     return routes.get('/api/' + method).fetch(new Request('http://localhost/api/' + method, {

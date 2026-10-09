@@ -1,7 +1,7 @@
 import Foundation
 enum MenuInteractionAction:String {
  case allow,deny,details,answer
- var title:String {switch self{case .allow:return "允许本次";case .deny:return "拒绝";case .details:return "查看详情";case .answer:return "打开完整问答"}}
+ var title:String {switch self{case .allow:return L("允许一次");case .deny:return L("拒绝");case .details:return L("查看详情");case .answer:return L("打开完整问答")}}
 }
 struct MenuInteraction:Equatable {
  let requestId:String,sessionId:String,kind:String,title:String
@@ -13,10 +13,10 @@ enum MenuSessionState:String,Codable,CaseIterable {
  case waitingQuestions="waiting-questions",waitingApproval="waiting-approval",error,interrupted,maxTokens="max-tokens",running,completed,stopped,paused,unknown
  case parentStopped="parent-stopped",hookStopped="hook-stopped",environmentStopped="environment-stopped",cancelled
  var label:String {switch self {
- case .waitingQuestions:return "等待回答";case .waitingApproval:return "等待审批";case .error:return "出错"
- case .interrupted:return "异常中断";case .maxTokens:return "输出上限";case .running:return "运行中"
- case .completed:return "已完成";case .stopped:return "用户停止";case .paused:return "已暂停";case .unknown:return "状态未知"
- case .parentStopped:return "随主会话停止";case .hookStopped:return "规则取消";case .environmentStopped:return "运行环境停止";case .cancelled:return "停止原因未知"
+ case .waitingQuestions:return L("等待回答");case .waitingApproval:return L("等待审批");case .error:return L("出错")
+ case .interrupted:return L("异常中断");case .maxTokens:return L("输出上限");case .running:return L("进行中")
+ case .completed:return L("已完成");case .stopped:return L("用户停止");case .paused:return L("已暂停");case .unknown:return L("状态未知")
+ case .parentStopped:return L("随主会话停止");case .hookStopped:return L("规则取消");case .environmentStopped:return L("运行环境停止");case .cancelled:return L("停止原因未知")
  }}
  var isLive:Bool {self == .running || self == .waitingQuestions || self == .waitingApproval}
  var isFailure:Bool {self == .error || self == .interrupted || self == .maxTokens}
@@ -27,13 +27,17 @@ struct MenuNode:Codable,Equatable {
  let preview:String;let previewKind:String;let pinned:Bool;let pinIndex:Int?;let progress:MenuProgress?
  let childIds:[String];let descendantBadge:String?;let updatedAt:Double
  let activityToken:String?
- var title:String {workspaceTitle+" · "+sessionTitle}
+ var workspaceUnassigned:Bool? = nil
+ var sessionUntitled:Bool? = nil
+ var displaySessionTitle:String {sessionUntitled == true ? L("未命名"):sessionTitle}
+ var title:String {(workspaceUnassigned == true ? L("未分组"):workspaceTitle)+" · "+displaySessionTitle}
+ var displayPreview:String {previewKind == "empty" ? L("无文字输入"):preview}
  var accessibleLabel:String {
   var result=title+"，"+state.label
-  if pinned {result+="，已固定"}
-  if let progress=progress {result+="，任务 \(progress.completed)/\(progress.total)"}
-  if let badge=descendantBadge,let status=MenuSessionState(rawValue:badge){result+="，子代理"+status.label}
-  return result+"，"+preview
+  if pinned {result+=L("，已置顶")}
+  if let progress=progress {result+=L("，任务 {0}/{1}", ["0": String(describing: progress.completed), "1": String(describing: progress.total)])}
+  if let badge=descendantBadge,let status=MenuSessionState(rawValue:badge){result+=L("，子智能体")+status.label}
+  return result+"，"+displayPreview
  }
 }
 struct MenuSnapshot:Codable {
@@ -59,10 +63,10 @@ final class SessionMenuStore {
  func unavailable(){invalid=true}
  func isStale(at now:Double)->Bool {guard let value=snapshot else{return true};return now-value.updatedAt>6000}
  func status(at now:Double)->String {
-  guard let value=snapshot else{return "等待 DSH 连接"}
-  if isStale(at:now){return "DSH 未连接，内容可能过期"}
-  if invalid || value.availability=="unavailable" {return "会话数据暂不可用，显示上次有效内容"}
-  return value.availability=="loading" ? "正在加载会话…":"DSH 已连接"
+  guard let value=snapshot else{return L("等待 DSH 连接")}
+  if isStale(at:now){return L("DSH 未连接，内容可能过期")}
+  if invalid || value.availability=="unavailable" {return L("会话数据暂不可用，显示上次有效内容")}
+  return value.availability=="loading" ? L("正在加载会话…"):L("DSH 已连接")
  }
  private func valid(_ value:MenuSnapshot,at now:Double)->Bool {
   guard value.version==1,UUID(uuidString:value.generation) != nil,value.revision>=0,value.revision<=9007199254740991,
@@ -71,7 +75,7 @@ final class SessionMenuStore {
   if let cohort=value.cohort {guard cohort.id>=0,cohort.revision>=0,["white","yellow","red","green"].contains(cohort.tone) else{return false}}
   var byId:[String:MenuNode]=[:]
   for node in value.nodes {
-   guard menuSessionIdValid(node.id),byId[node.id]==nil,node.title.unicodeScalars.count<=200,node.preview.unicodeScalars.count<=240,
+   guard menuSessionIdValid(node.id),byId[node.id]==nil,(node.workspaceTitle+" · "+node.sessionTitle).unicodeScalars.count<=200,node.preview.unicodeScalars.count<=240,
          !node.preview.contains(where:{$0.isNewline}),["user","task","answer","empty"].contains(node.previewKind),
          node.activityToken==nil || node.activityToken!.utf8.count<=100,
          node.childIds.count<=2000,Set(node.childIds).count==node.childIds.count,node.updatedAt.isFinite,node.updatedAt>=0,

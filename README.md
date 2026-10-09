@@ -209,3 +209,7 @@ npm run check:release
 ## 许可证
 
 [MIT](LICENSE)。DSH 名称与本地取得的官方图标用于说明集成对象，第三方品牌权利不由本仓库授权。离线渲染资源及许可证见 [THIRD_PARTY](THIRD_PARTY.md)。
+
+## Links
+
+-   [Linux.do 论坛](https://linux.do/)

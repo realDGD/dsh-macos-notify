@@ -44,7 +44,7 @@ const agentOwned = () => { try { return readFileSync(agent, 'utf8').includes('<!
 const checkPanels = directory => {
   try {
     const lease = JSON.parse(readFileSync(join(directory, 'open-panels.json'), 'utf8'))
-    if (Date.now() - lease.updatedAt < 5000 && lease.ids?.length) throw new Error('Close native question/approval panels before upgrading so drafts are preserved.')
+    if (Date.now() - lease.updatedAt < 5000 && (lease.ids?.length || lease.draftIds?.length)) throw new Error('Close native panels and resolve unsent question drafts before upgrading. Closing a question window keeps its draft; quitting the helper discards it.')
   } catch (error) { if (error.message.startsWith('Close native')) throw error }
 }
 const stop = () => {

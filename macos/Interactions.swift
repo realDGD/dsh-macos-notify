@@ -225,6 +225,12 @@ final class QuestionEditor: NSObject, NSTextViewDelegate {
     var answer: [String: Any] {
         ["id": question.id, "selected": buttons.filter { $0.state == .on }.map { question.options![$0.tag].label }, "custom": input.string]
     }
+    func clearAnswer() {
+        buttons.forEach { $0.state = .off }
+        input.string = ""
+        input.undoManager?.removeAllActions()
+        changed?()
+    }
     func setEnabled(_ enabled: Bool) { for button in buttons { button.isEnabled = enabled }; input.isEditable = enabled }
 }
 
@@ -414,6 +420,7 @@ final class QuestionWindow: NSWindowController, NSWindowDelegate {
     private var editors: [QuestionEditor] = []
     private let status = wrapped("")
     private let submit = uiButton(title: L("提交全部回答"), target: nil, action: nil)
+    private let clear = uiButton(title: L("清空回答"), target: nil, action: nil)
     private let desktop = uiButton(title: L("回到 DSH 会话"), target: nil, action: nil)
     private let allow = uiButton(title: L("允许一次"), target: nil, action: nil)
     private let deny = uiButton(title: L("拒绝"), target: nil, action: nil)
@@ -423,6 +430,7 @@ final class QuestionWindow: NSWindowController, NSWindowDelegate {
     private var transitioning = false
     private var unavailable = false
     var acceptsAnswers: Bool { !terminal }
+    var hasDraft: Bool { editors.contains { $0.answered || !$0.input.string.isEmpty } }
     var onSubmit: ((Any) -> Void)?
     var onClose: (() -> Void)?
     init(_ request: NativeRequest) {
@@ -499,7 +507,10 @@ final class QuestionWindow: NSWindowController, NSWindowDelegate {
         desktop.bezelStyle = .rounded
         allow.target = self; allow.action = #selector(sendDecision(_:)); allow.bezelStyle = .rounded
         deny.target = self; deny.action = #selector(sendDecision(_:)); deny.bezelStyle = .rounded
-        let footer = NSStackView(views: request.kind == "approval" ? [desktop, deny, allow] : [desktop, submit])
+        clear.target = self; clear.action = #selector(clearAnswers); clear.bezelStyle = .rounded
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let footer = NSStackView(views: request.kind == "approval" ? [desktop, deny, allow] : [clear, spacer, desktop, submit])
         footer.orientation = .horizontal
         for child in [heading, scroll, status, footer] {
             root.addSubview(child)
@@ -519,6 +530,8 @@ final class QuestionWindow: NSWindowController, NSWindowDelegate {
             footer.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -20),
             footer.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -15),
         ])
+        footer.leadingAnchor.constraint(greaterThanOrEqualTo: root.leadingAnchor, constant: 20).isActive = true
+        if request.kind == "questions" { footer.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 20).isActive = true }
         window.center()
         refresh()
         // A flipped document starts at its top-left. Scrolling to the document
@@ -538,14 +551,20 @@ final class QuestionWindow: NSWindowController, NSWindowDelegate {
             if !navigating { uiSet(status, unavailable ? L("暂时无法连接 DSH，请恢复连接后处理。") : L("请核实命令、参数和权限后决定。"))}
             return
         }
+        clear.isEnabled = !navigating && hasDraft
         let count = editors.filter { $0.answered }.count
         if !navigating { uiSet(status, unavailable ? L("暂时无法连接 DSH，已保留草稿。恢复连接后可继续。") : (transitioning ? L("DSH 正在将问题转入后台，请稍候…") : L("已回答 {0} / {1} · 每题至少选择一个选项或填写自定义答案", ["0": String(describing: count), "1": String(describing: editors.count)])))}
         submit.isEnabled = !unavailable && !transitioning && !navigating && !editors.isEmpty && count == editors.count
     }
+    @objc private func clearAnswers() {
+        guard clear.isEnabled, !sending, !terminal, !navigating else { return }
+        editors.forEach { $0.clearAnswer() }
+        refresh()
+    }
     @objc private func send() {
         guard submit.isEnabled, !sending, !terminal, !navigating else { return }
         sending = true
-        submit.isEnabled = false
+        submit.isEnabled = false; clear.isEnabled = false
         editors.forEach { $0.setEnabled(false) }
         uiSet(status, L("正在提交，请稍候…"))
         onSubmit?(["answers": editors.map { $0.answer }])
@@ -573,17 +592,20 @@ final class QuestionWindow: NSWindowController, NSWindowDelegate {
             else { self.close() }
         }
     }
-    func finish(_ message: String) {
-        guard !terminal else { return }
+    func finish(_ message: String, discardDraft: Bool = true) {
+        let alreadyTerminal = terminal
         terminal = true
+        // A later authoritative withdrawal also scrubs a result-unknown form.
+        if discardDraft { editors.forEach { $0.clearAnswer() } }
+        guard !alreadyTerminal else { return }
         sending = false
-        submit.isEnabled = false; allow.isEnabled = false; deny.isEnabled = false
+        submit.isEnabled = false; clear.isEnabled = false; allow.isEnabled = false; deny.isEnabled = false
         editors.forEach { $0.setEnabled(false) }
         uiSet(status, message)
     }
     func markSending() {
         guard !terminal else { return }
-        sending = true; submit.isEnabled = false; allow.isEnabled = false; deny.isEnabled = false
+        sending = true; submit.isEnabled = false; clear.isEnabled = false; allow.isEnabled = false; deny.isEnabled = false
         editors.forEach { $0.setEnabled(false) }
         uiSet(status, L("正在提交，请稍候…"))
     }
@@ -614,6 +636,7 @@ final class NotificationInteractions {
     static let details = "DSH_DETAILS"
     var openSession: ((String, @escaping (String?) -> Void) -> Void)?
     private var active: [String: NativeRequest] = [:]
+    private var hostConnected = false
     private var seen = Set<String>()
     private var windows: [String: QuestionWindow] = [:]
     private var pendingCommands: [String: (NativeRequest, Date)] = [:]
@@ -710,8 +733,9 @@ final class NotificationInteractions {
                 // settling its request. Pause safely, retaining the draft.
                 windows[id]?.setUnavailable(true)
                 seen.remove(id)
-            } else if !submitting.contains(id) { windows[id]?.finish(L("此请求已在 DSH 回答、取消或失效，无需再次提交。")) }
+            } else if !submitting.contains(id) || windows[id]?.acceptsAnswers == false { windows[id]?.finish(L("此请求已在 DSH 回答、取消或失效，无需再次提交。")) }
         }
+        hostConnected = connected
         active = next
         settled.formIntersection(Set(next.keys))
         for request in requests {
@@ -753,6 +777,11 @@ final class NotificationInteractions {
                 logLine("interaction-result-timeout request=\(requestId)")
             }
         }
+        // Closed forms may retain unsent answers, but never retain a settled
+        // request after a fresh Host withdrawal or a submission result.
+        for (id, window) in windows where !window.acceptsAnswers && window.window?.isVisible != true {
+            windows.removeValue(forKey: id)
+        }
         writePanelLease()
     }
     private func post(_ request: NativeRequest) {
@@ -764,7 +793,15 @@ final class NotificationInteractions {
     }
     func handle(id: String, action: String) {
         poll()
-        guard let request = active[id] else { windows[id]?.finish(L("请求已回答或失效。")); logLine("interaction-click-stale request=\(id)"); return }
+        guard let request = active[id] else {
+            if !hostConnected, let cached = windows[id], cached.acceptsAnswers {
+                cached.present()
+                return
+            }
+            windows[id]?.finish(L("请求已回答或失效。"))
+            logLine("interaction-click-stale request=\(id)")
+            return
+        }
         if action == Self.allow || action == Self.deny {
             submit(request, answer: action == Self.allow ? "allowed-once" : "rejected")
         } else { showQuestions(request) }
@@ -773,17 +810,31 @@ final class NotificationInteractions {
         if let existing = windows[request.id] { existing.present(); return }
         let controller = QuestionWindow(request)
         controller.onSubmit = { [weak self] answer in self?.submit(request, answer: answer) }
-        controller.onClose = { [weak self] in self?.windows.removeValue(forKey: request.id); self?.writePanelLease() }
+        controller.onClose = { [weak self, weak controller] in
+            guard let self = self, let controller = controller else { return }
+            // Closing is not canceling the Host request. Keep its original
+            // controls and drafts in memory until the request settles.
+            if request.kind != "questions" || !controller.acceptsAnswers || !controller.hasDraft {
+                self.windows.removeValue(forKey: request.id)
+            }
+            self.writePanelLease(excludingVisible: request.id)
+        }
         windows[request.id] = controller
         controller.setTransitioning(request.phase == "transitioning")
         if submitting.contains(request.id) { controller.markSending() }
         controller.present()
         writePanelLease()
     }
-    private func writePanelLease() {
-        let ids = windows.filter { $0.value.request.kind == "questions" && $0.value.acceptsAnswers && active[$0.key] != nil }.map { $0.key }
+    private func writePanelLease(excludingVisible: String? = nil) {
+        let ids = windows.filter {
+            $0.key != excludingVisible && $0.value.request.kind == "questions" && $0.value.acceptsAnswers &&
+                $0.value.window?.isVisible == true
+        }.map { $0.key }
+        let draftIds = windows.filter {
+            $0.value.request.kind == "questions" && $0.value.acceptsAnswers && $0.value.hasDraft
+        }.map { $0.key }
         let path = (self.directory as NSString).appendingPathComponent("open-panels.json")
-        if let data = try? JSONSerialization.data(withJSONObject: ["updatedAt": Date().timeIntervalSince1970 * 1000, "ids": ids]) {
+        if let data = try? JSONSerialization.data(withJSONObject: ["updatedAt": Date().timeIntervalSince1970 * 1000, "ids": ids, "draftIds": draftIds]) {
             try? data.write(to: URL(fileURLWithPath: path), options: .atomic)
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
         }
@@ -816,7 +867,7 @@ final class NotificationInteractions {
     }
     private func reportFailure(_ request: NativeRequest, message: String, retryable: Bool) {
         if let window = windows[request.id] {
-            if retryable { window.failed(message) } else { window.finish(message) }
+            if retryable { window.failed(message) } else { window.finish(message, discardDraft: false) }
         } else { resultNotice(request, message: message) }
     }
     private func resultNotice(_ request: NativeRequest, message: String) {

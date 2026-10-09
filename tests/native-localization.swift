@@ -33,7 +33,7 @@ func logLine(_ text:String) {}
   let measured=status.cell!.cellSize(forBounds:NSRect(x:0,y:0,width:status.frame.width,height:10000)).height
   fputs("English status frame=\(status.frame), measured=\(measured), root=\(root.bounds)\n",stderr)
   precondition(status.frame.height+1>=measured && status.frame.minX>=0 && status.frame.maxX<=root.bounds.width,"English status must wrap within narrow window")
-  for button in descendants(root).compactMap({$0 as? NSButton}).filter({["Open in DSH","Submit all answers"].contains($0.title)}) {
+  for button in descendants(root).compactMap({$0 as? NSButton}).filter({["Clear answers","Open in DSH","Submit all answers"].contains($0.title)}) {
    let bounds=button.convert(button.bounds,to:root)
    precondition(bounds.minX>=0 && bounds.maxX<=root.bounds.width && bounds.minY>=0,"English footer must fit narrow window")
   }

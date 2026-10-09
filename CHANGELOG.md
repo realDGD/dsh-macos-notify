@@ -1,8 +1,14 @@
 # Changelog
 
-## 0.5.0 (prerelease)
+## 0.5.0 — 2026-10-09
 
-### Preview 2
+### Draft lifecycle
+
+- Keep independent question text and selections when closing/reopening a form or briefly disconnecting, including notification reentry. Clear obsolete drafts on confirmed request withdrawal or native acceptance.
+- Add Clear answers to the question footer; reset all choices/text without submitting or canceling the request. Disable it while submitting or after settlement.
+- Protect hidden unsent drafts from installer replacement without holding the official timed-question wait after closing a window. Drafts remain memory-only and are discarded when the helper quits.
+
+### Installation and language
 
 - Add Chinese and English READMEs with user-selected native screenshots and recordings, a Desktop-first installation walkthrough, an agent-assisted fallback and troubleshooting.
 - Keep private work plans, local distributions and signing materials out of Git; retain normalized release metadata and history auditing.
@@ -12,10 +18,10 @@
 
 - Follow DSH's English/Chinese language live across settings, menu, notifications, approval/question windows and context helpers. Preserve original content, selections and open drafts; delivered notification actions retain their sending language.
 
-### Preview 1
+### Notifications and session menu
 
 - Produce a plugin installation package and a separate complete source archive with exact-commit manifest and SHA-256 checksums. Normalize archive ownership/timestamps and audit all reachable Git history plus the actual archive contents before distribution.
-- Document independent source installation, safe upgrades/uninstall and the distinction between automated evidence and pending live menu acceptance. Do not advertise an unpublished stable tag.
+- Document independent source installation, safe upgrades/uninstall and the distinction between automated coverage, local live acceptance and untested OS/device combinations.
 
 - Size short approval command/argument previews to their text and group related controls more tightly, keeping the context disclosure visible at the default window height. Long previews and narrow windows remain scrollable.
 - Normalize bundled context-document URLs before navigation checks so expanded question/approval Markdown loads from the installed app instead of leaving a blank pane. Run the WebKit regression from a real application bundle.

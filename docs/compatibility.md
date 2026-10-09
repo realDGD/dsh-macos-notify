@@ -55,11 +55,11 @@ The current helper coordinates one local active DSH profile/state namespace. Mul
 
 The menu uses the official 0.2.0-rc.2 session and format-catalog peer packages to fold the same retained observation; `sessionPersistence.stat` supplies lightweight revision tokens. Cache identity includes the persistence instance and session revision. Unchanged histories do not exceed the SDK’s prepared-cache capacity with repeated full reads, and no second uncancellable surface read is held across disposal. Development/manual source installs use `npm ci --ignore-scripts`; DSH package installs resolve the declared peer packages and run approved lifecycle scripts.
 
-## v0.5.0 prerelease status
+## v0.5.0 stable release
 
 Build 26 verification: Node regressions, full native tests, a source build targeting macOS 13, signature checks and exact-revision CI passed for the implementation. On the local test machine, the expanded context component displayed dark Markdown tables/formulas/code correctly, and the approval context disclosure remained visible at the default window size and reachable in a smaller window. The user also confirmed the system notification's official icon. These are specific checks, not certification across every supported OS.
 
-**Still pending before a stable 0.5.0 release:** production menu expand/collapse, actual recent-session click with matching authenticated Desktop acknowledgement, and the remaining menu-to-question draft/request checks. Package verification cannot replace these live checks. See [release procedure](release.md).
+The user confirmed production menu expansion/collapse and correct recent-session navigation. After Build 31 deployment, the user also confirmed choices/text survive closing and reopening a question window, Clear answers resets all fields without canceling the request, and answering/canceling in DSH removes the old menu action. Native regressions cover three independent questions, notification reentry during disconnection, accepted/stale results and unknown-result timeout followed by authoritative withdrawal. Drafts are memory-only; quitting the helper discards them. These local checks do not certify every OS or device. See [release procedure](release.md).
 
 ### Activity semantics
 
@@ -75,10 +75,10 @@ DSH Notify follows the official DSH client locale service; it has no independent
 
 Regressions cover authenticated language validation, stale updates, reconnect/retry/coalescing/disposal, literal parameters, synthetic-name provenance, open-window draft identity, narrow English status/footer layout, and actual offline WebKit language updates retaining Markdown content and scroll position. Real Desktop language-switch acceptance is a separate deployment check.
 
-### Automatic native installation (Preview 2, Build 30)
+### Automatic native installation (v0.5.0, Build 31)
 
-A package `postinstall` compiles the helper locally and installs it only after DSH/pnpm permits that package's build scripts. It verifies the staging signature before replacement, reuses matching verified bundles, protects open drafts, retains settings and previous Apps, and prevents concurrent replacements. It deliberately defers LaunchServices registration and helper startup to Desktop. `--profile web` can install/compile the package but does not install it in the Desktop profile or add standalone-Web lifecycle support. Installing through the Desktop-supplied CLI uses `--profile desktop`.
+A package `postinstall` compiles the helper locally and installs it only after DSH/pnpm permits that package's build scripts. It verifies the staging signature before replacement, reuses matching verified bundles, protects open panels and hidden unsent drafts, retains settings and previous Apps, and prevents concurrent replacements. It deliberately defers LaunchServices registration and helper startup to Desktop. `--profile web` can install/compile the package but does not install it in the Desktop profile or add standalone-Web lifecycle support. Installing through the Desktop-supplied CLI uses `--profile desktop`.
 
 The macOS 13 SDK build excludes all `CADisplayLink` / `NSView.displayLink` references at compilation and uses a screen-rate timer. A newer SDK enables those interfaces with a macOS 14 runtime check. Both paths target macOS 13; building with a newer SDK while disabling the new interfaces is not an actual old-SDK or macOS 13 device test. Local ad-hoc signing does not bypass package-manager approval, macOS notification permission or Gatekeeper policies.
 
-Preview 2 adds automatic installation; Preview 1 still needs a matching manual helper build. The official CLI/pnpm lifecycle was exercised in a fresh isolated profile: scripts were blocked before approval, then the exact approved Git package built and installed the signed helper. A scoped rebuild reused the helper with an open-draft lease without replacing it. These checks do not establish standalone-Web runtime support or actual macOS 13/Intel device acceptance.
+Stable v0.5.0 adds automatic installation; Preview 1 still needs a matching manual helper build. The official CLI/pnpm lifecycle was exercised in a fresh isolated profile: scripts were blocked before approval, then the exact approved Git package built and installed the signed helper. A scoped rebuild reused the helper with an open-draft lease without replacing it. These checks do not establish standalone-Web runtime support or actual macOS 13/Intel device acceptance.

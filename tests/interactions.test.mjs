@@ -160,6 +160,17 @@ test('Desktop answer withdraws the request and rejects a later native answer', c
   assert.equal((await f.command(notice.id, answer)).status, 'stale')
 })
 
+test('cancelled questions or a terminated turn withdraw the request before a native answer', check, async t => {
+  const f = await fixture(t)
+  const [notice] = f.state().requests
+  const rejected = assert.rejects(f.pending, /question cancelled or turn terminated/)
+  f.signal.abort(new Error('question cancelled or turn terminated'))
+  await rejected
+  assert.equal(f.state().requests.length, 0)
+  assert.equal(f.accessor.pendingStates().size, 0)
+  assert.equal((await f.command(notice.id, answer)).status, 'stale')
+})
+
 test('a batch of three valid long Chinese answers survives UTF-8 transport without truncation', check, async t => {
   const f = await fixture(t)
   f.pending.catch(() => {})
@@ -320,9 +331,9 @@ test('an open native panel holds the official timed wait and closing the panel r
   writeFileSync(join(f.dir, 'open-panels.json'), JSON.stringify({ updatedAt: Date.now(), ids: [notice.id] }))
   await sleep(300)
   assert.equal(held, true)
-  writeFileSync(join(f.dir, 'open-panels.json'), JSON.stringify({ updatedAt: Date.now(), ids: [] }))
+  writeFileSync(join(f.dir, 'open-panels.json'), JSON.stringify({ updatedAt: Date.now(), ids: [], draftIds: [notice.id] }))
   await sleep(300)
-  assert.equal(held, false)
+  assert.equal(held, false, 'hidden drafts must not hold the official timed wait')
   f.official.resolve(answer)
   await f.pending
 })

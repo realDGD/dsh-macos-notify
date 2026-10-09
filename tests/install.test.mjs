@@ -61,6 +61,14 @@ test('upgrade refuses an open native panel and preserves the current app', t => 
   assert.equal(readFileSync(join(f.home, 'Applications/DSH Notify.app/Contents/MacOS/DSHNotify'), 'utf8'), 'v1')
 })
 
+test('upgrade refuses a hidden unsent question draft without changing the app', t => {
+  const f = fixture(t); f.run()
+  writeFileSync(join(f.home, '.dsh/dsh-jump/open-panels.json'), JSON.stringify({ updatedAt: Date.now(), ids: [], draftIds: ['hidden-draft'] }))
+  writeFileSync(join(f.app, 'Contents/MacOS/DSHNotify'), 'v2')
+  assert.throws(() => f.run(), /Close native/)
+  assert.equal(readFileSync(join(f.home, 'Applications/DSH Notify.app/Contents/MacOS/DSHNotify'), 'utf8'), 'v1')
+})
+
 test('package postinstall installs the native helper through the owned installer', t => {
   const f = fixture(t)
   const result = spawnSync('npm', ['run', 'postinstall', '--', '--home', f.home, '--app', f.app, '--no-start'],

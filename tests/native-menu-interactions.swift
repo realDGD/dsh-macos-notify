@@ -16,7 +16,7 @@ func logLine(_ message:String) {}
   var other=NativeRequest(id:"approval-2",kind:"approval",sessionId:"parent",title:"安全测试二",subtitle:"测试",body:"审批二",questions:nil,phase:"foreground")
   approval.approval=NativeApproval(toolName:"shell",reason:"读取一",callId:"call-1",arguments:nil,command:"echo FIRST")
   other.approval=NativeApproval(toolName:"shell",reason:"读取二",callId:"call-2",arguments:nil,command:"echo SECOND")
-  let question=NativeRequest(id:"questions-1",kind:"questions",sessionId:"child",title:"三题测试",subtitle:"三题测试",body:"",questions:(1...3).map{NativeQuestion(id:"q\($0)",question:"选择并补充文字",header:nil,detail:nil,options:[NativeOption(label:"选项 A",description:nil)],multiSelect:false)},phase:"foreground")
+  let question=NativeRequest(id:"questions-1",kind:"questions",sessionId:"child",title:"三题测试",subtitle:"三题测试",body:"",questions:(1...3).map{NativeQuestion(id:"q\($0)",question:"选择并补充文字",header:nil,detail:nil,options:[NativeOption(label:"选项 A",description:nil)],multiSelect:$0 == 2)},phase:"foreground")
   func write(_ requests:[NativeRequest],aged:Bool=false) throws {
    let snapshot=NativeSnapshot(version:1,updatedAt:Date().timeIntervalSince1970*1000-(aged ? 10000:0),requests:requests,preferences:["approval":false,"questions":false])
    try JSONEncoder().encode(snapshot).write(to:directory.appendingPathComponent("interactions.json"),options:.atomic)
@@ -119,9 +119,93 @@ func logLine(_ message:String) {}
   editors.first!.string="未提交草稿"
   _=interactions.handleMenuInteraction(questions,action:.answer)
   check(editors.first!.string=="未提交草稿" && NSApplication.shared.windows.filter{$0.title.contains("三题测试")}.count==1,"menu reentry replaces form draft")
+  let draftTexts=["第一题\n保留换行", "第二题独立补充", "第三题 ✨"]
+  for (editor,text) in zip(editors,draftTexts) {editor.string=text}
+  let choices=descendants(form.contentView!).compactMap{$0 as? NSButton}.filter{$0.title.isEmpty && $0.tag==0}
+  check(choices.count==3,"test needs each question's original choice control")
+  choices.forEach{$0.performClick(nil)}
   form.performClose(nil)
+  check(interactions.handleMenuInteraction(questions,action:.answer)==nil,"closed question cannot reopen")
+  let reopened=NSApplication.shared.windows.first{$0.title.contains("三题测试") && $0.isVisible}!
+  let restored=descendants(reopened.contentView!).compactMap{$0 as? NSTextView}.filter{$0.isEditable}
+  check(restored.map{$0.string}==draftTexts,"closing the question window discards independent drafts")
+  check(descendants(reopened.contentView!).compactMap{$0 as? NSButton}.filter{$0.title.isEmpty && $0.tag==0}.allSatisfy{$0.state == .on},"closing the question window loses single/multi-select choices")
+  let clear=descendants(reopened.contentView!).compactMap{$0 as? NSButton}.first{$0.title=="清空回答"}
+  check(clear != nil && clear!.isEnabled,"question form has no enabled Clear answers button for a draft")
+  let submit=descendants(reopened.contentView!).compactMap{$0 as? NSButton}.first{$0.title=="提交全部回答"}!
+  clear!.performClick(nil)
+  check(restored.allSatisfy{$0.string.isEmpty},"Clear answers leaves question text behind")
+  check(choices.allSatisfy{$0.state == .off},"Clear answers leaves radio/checkbox choices selected")
+  check(!clear!.isEnabled && !submit.isEnabled && commands().count==2,"Clear answers submits/cancels the request or leaves invalid controls enabled")
+  check(descendants(reopened.contentView!).compactMap{$0 as? NSTextField}.contains{$0.stringValue.hasPrefix("已回答 0 / 3")},"Clear answers does not reset the answer count")
+  for (editor,text) in zip(restored,draftTexts) {editor.string=text}
+  choices.forEach{$0.performClick(nil)}
+  reopened.performClose(nil)
+  func leaseIds()->[String] {
+   let data=try! Data(contentsOf:directory.appendingPathComponent("open-panels.json"))
+   let lease=try! JSONSerialization.jsonObject(with:data) as! [String:Any]
+   return (lease["ids"] as! [String]) + (lease["draftIds"] as? [String] ?? [])
+  }
+  check(leaseIds().contains(question.id),"closed unsent drafts are unprotected during upgrade")
+  let closedLease=try JSONSerialization.jsonObject(with:Data(contentsOf:directory.appendingPathComponent("open-panels.json"))) as! [String:Any]
+  check((closedLease["ids"] as! [String]).isEmpty,"a hidden draft holds the official question wait open")
+  try write([question],aged:true);interactions.poll()
+  check(leaseIds().contains(question.id),"disconnect drops protection for a closed draft")
+  interactions.handle(id:question.id,action:NotificationInteractions.answer);interactions.poll()
+  check(leaseIds().contains(question.id),"notification reentry during disconnect discards a closed draft")
+  try write([question]);check(interactions.handleMenuInteraction(questions,action:.answer)==nil,"reconnected question cannot reopen")
+  let reconnected=NSApplication.shared.windows.first{$0.title.contains("三题测试") && $0.isVisible}!
+  check(reconnected === reopened,"reconnect replaces the original form")
+  check(descendants(reconnected.contentView!).compactMap{$0 as? NSTextView}.filter{$0.isEditable}.map{$0.string}==draftTexts,"reconnect discards closed drafts")
+  reconnected.performClose(nil)
+  try write([]);interactions.poll()
+  check(leaseIds().isEmpty,"withdrawn request retains a draft lease")
+  check(restored.allSatisfy{$0.string.isEmpty} && choices.allSatisfy{$0.state == .off},"Host withdrawal leaves obsolete answers in the retained controller")
+  check(!clear!.isEnabled,"withdrawn request allows clearing or editing")
+  try write([question]);_ = interactions.handleMenuInteraction(questions,action:.answer)
+  let fresh=NSApplication.shared.windows.first{$0.title.contains("三题测试") && $0.isVisible}!
+  let freshEditors=descendants(fresh.contentView!).compactMap{$0 as? NSTextView}.filter{$0.isEditable}
+  check(freshEditors.allSatisfy{$0.string.isEmpty},"withdrawn request resurrects its old drafts")
+  check(descendants(fresh.contentView!).compactMap{$0 as? NSButton}.filter{$0.title.isEmpty && $0.tag==0}.allSatisfy{$0.state == .off},"withdrawn request resurrects choices")
+  fresh.performClose(nil)
+  check(leaseIds().isEmpty,"closing an empty form should not block upgrades")
+  for resultStatus in ["accepted","stale"] {
+   let request=NativeRequest(id:"question-"+resultStatus,kind:"questions",sessionId:"child",title:resultStatus,subtitle:resultStatus,body:"",questions:question.questions,phase:"foreground")
+   try write([request]);interactions.poll()
+   let item=interactions.menuInteractions().first{$0.requestId==request.id}!
+   check(interactions.handleMenuInteraction(item,action:.answer)==nil,"result fixture cannot open")
+   let window=NSApplication.shared.windows.first{$0.title=="DSH · "+resultStatus+" · 问答" && $0.isVisible}!
+   let fields=descendants(window.contentView!).compactMap{$0 as? NSTextView}.filter{$0.isEditable}
+   fields.forEach{$0.string="pending "+resultStatus}
+   descendants(window.contentView!).compactMap{$0 as? NSButton}.filter{$0.title.isEmpty && $0.tag==0}.forEach{$0.performClick(nil)}
+   let reset=descendants(window.contentView!).compactMap{$0 as? NSButton}.first{$0.title=="清空回答"}!
+   let send=descendants(window.contentView!).compactMap{$0 as? NSButton}.first{$0.title=="提交全部回答"}!
+   send.performClick(nil)
+   check(!reset.isEnabled && fields.allSatisfy{!$0.isEditable},"submitting form can clear or alter its in-flight answers")
+   window.performClose(nil)
+   let command=commands().first{$0["requestId"] as? String==request.id}!
+   try JSONSerialization.data(withJSONObject:["status":resultStatus]).write(to:resultDir.appendingPathComponent((command["commandId"] as! String)+".json"))
+   interactions.poll()
+   check(fields.allSatisfy{$0.string.isEmpty} && !reset.isEnabled && leaseIds().isEmpty,"settled native result retains its old answers or upgrade lease")
+   check(interactions.handleMenuInteraction(item,action:.answer) != nil,"settled request reopens mutable answers while Host snapshot lags")
+  }
+  let unknown=NativeRequest(id:"question-timeout",kind:"questions",sessionId:"child",title:"unknown",subtitle:"unknown",body:"",questions:question.questions,phase:"foreground")
+  try write([unknown]);interactions.poll()
+  let unknownItem=interactions.menuInteractions().first{$0.requestId==unknown.id}!
+  _=interactions.handleMenuInteraction(unknownItem,action:.answer)
+  let unknownWindow=NSApplication.shared.windows.first{$0.title=="DSH · unknown · 问答" && $0.isVisible}!
+  let unknownFields=descendants(unknownWindow.contentView!).compactMap{$0 as? NSTextView}.filter{$0.isEditable}
+  unknownFields.forEach{$0.string="verify in DSH before retry"}
+  descendants(unknownWindow.contentView!).compactMap{$0 as? NSButton}.filter{$0.title.isEmpty && $0.tag==0}.forEach{$0.performClick(nil)}
+  descendants(unknownWindow.contentView!).compactMap{$0 as? NSButton}.first{$0.title=="提交全部回答"}!.performClick(nil)
+  Thread.sleep(forTimeInterval:15.1);interactions.poll()
+  check(unknownFields.allSatisfy{$0.string=="verify in DSH before retry" && !$0.isEditable},"unknown result must retain read-only answers for verification")
+  try write([]);interactions.poll()
+  check(unknownFields.allSatisfy{$0.string.isEmpty},"authoritative withdrawal after an unknown result leaves obsolete drafts")
+  unknownWindow.performClose(nil)
+  let beforeStale=commands().count
   controller.act(second,action:.deny,at:now+7000)
-  check(commands().count==2,"stale session menu allowed a submission")
+  check(commands().count==beforeStale,"stale session menu allowed a submission")
   try write([question],aged:true);check(interactions.handleMenuInteraction(questions,action:.answer) != nil,"aged snapshot still permits menu action")
   let blocked=directory.appendingPathComponent("blocked");try FileManager.default.createDirectory(at:blocked,withIntermediateDirectories:true)
   try Data("not a directory".utf8).write(to:blocked.appendingPathComponent("commands"))
@@ -129,6 +213,6 @@ func logLine(_ message:String) {}
   try JSONEncoder().encode(payload).write(to:blocked.appendingPathComponent("interactions.json"))
   let failing=NotificationInteractions(directory:blocked.path,center:nil);failing.poll()
   check(failing.handleMenuInteraction(failing.menuInteractions()[0],action:.allow) != nil,"queue write failure returned success to menu")
-  print("PASS native menu request binding, direct Allow/Deny, multiple/nested requests, stale/duplicate protection and three-question draft reuse")
+  print("PASS native menu request binding, stale/duplicate protection, three-question close/reopen drafts, Clear answers, settled cleanup, disconnect and upgrade protection")
  }
 }

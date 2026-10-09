@@ -6,7 +6,7 @@ Native macOS notifications, approvals, question forms and a session menu bar for
 
 The project combines a DSH plugin with the background **DSH Notify.app** helper. The helper starts and stops with Desktop. No browser, DSH Bridge or additional model service is required.
 
-This is a community plugin, currently available as a **0.5.0 prerelease**. A stable `v0.5.0` has not been released. See [Releases](https://github.com/realDGD/dsh-macos-notify/releases) for versions and downloads.
+This is a community plugin. The current stable version is **v0.5.0**. See [Releases](https://github.com/realDGD/dsh-macos-notify/releases/tag/v0.5.0) for versions and downloads.
 
 ## Features
 
@@ -19,7 +19,7 @@ This is a community plugin, currently available as a **0.5.0 prerelease**. A sta
 | Context and code | Renders Markdown tables, formulas and code; Shell/JSON highlighting and soft-wrapped commands and arguments improve readability. |
 | DSH language support | Follows DSH's English or Chinese setting. Session names, questions, choices, answers and commands stay in their original language. |
 
-DSH decides whether a request is still valid. The first accepted response wins; answered, canceled or expired requests are withdrawn, and stale buttons cannot repeat an action. Open windows keep their drafts during a temporary disconnection. An unconfirmed result is never retried automatically.
+DSH decides whether a request is still valid. The first accepted response wins; answered, canceled or expired requests are withdrawn, and stale buttons cannot repeat an action. Closing a question window or briefly disconnecting keeps each question’s draft. **Clear answers** resets all choices and text without canceling the request. Drafts stay in helper memory and are cleared when DSH confirms that the request was answered, canceled or withdrawn; quitting the helper discards unsent drafts. An unconfirmed result is never retried automatically.
 
 ## Interface preview
 
@@ -75,7 +75,7 @@ See [image sources and scope](docs/images/README.md). Demo requests do not execu
 
 **The easiest option is to install from DeepSeek Harness Desktop.** Prepare the build tools, then paste one plugin address. The installer compiles and installs **DSH Notify.app** on your Mac.
 
-> Automatic helper installation is supported starting with **v0.5.0-preview.2**. The older `v0.5.0-preview.1` still needs the manual steps below.
+> **v0.5.0** supports automatic helper installation. The older `v0.5.0-preview.1` still needs the manual steps below.
 
 You need **macOS 13 or later** and official **DSH Desktop**. The tested DSH version is `0.2.0-rc.2`. Desktop installation uses its bundled Node.js/pnpm; a separate Node.js 22+ installation is needed only for manual builds or development. See [compatibility](docs/compatibility.md) for older macOS and Intel verification limits.
 
@@ -193,7 +193,7 @@ Restart Desktop afterward. Settings and application backups are kept; only files
 - Questions and approvals are temporarily stored locally to display their forms and are not exported with diagnostics. Do not upload local state, tokens, session content or unredacted screenshots in issue reports.
 - macOS controls notification display, Focus modes and lock-screen previews. Quiet mode only affects reminders; it never approves, rejects or answers automatically.
 - One active local Host/state directory is supported. Multiple Hosts sharing one directory, older macOS and Intel have not been verified on real devices.
-- Before a stable 0.5.0 release, production menu expansion, a real recent-session click with matching navigation acknowledgement, and the remaining menu-to-question draft checks are still pending. Passing source tests and builds does not replace those live checks.
+- Local live acceptance covers menu expansion/collapse, navigation to the correct recent session, drafts surviving question-window close/reopen, Clear answers, and removal of the question action after answering or canceling in DSH.
 
 ## Development and verification
 

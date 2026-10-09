@@ -53,10 +53,10 @@ final class SessionMenuRowView:NSTableCellView {
   self.interactions=interactions.filter{$0.sessionId==node.id && !$0.actions.isEmpty};self.stale=stale;self.onInteraction=onInteraction
   super.init(frame:.zero);self.onDisclosure=onDisclosure
   for label in [title,preview,status] {label.maximumNumberOfLines=1;label.lineBreakMode = .byTruncatingTail;label.cell?.truncatesLastVisibleLine=true;label.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)}
-  title.stringValue=(depth>8 ? "第\(depth)层 · ":"")+node.title;title.font = .systemFont(ofSize:12,weight:.semibold)
-  preview.stringValue=(node.previewKind=="task" ? "任务：":"")+node.preview;preview.font = .systemFont(ofSize:11);preview.textColor = .secondaryLabelColor
+  title.stringValue=(depth>8 ? L("第{0}层 · ", ["0": String(describing: depth)]):"")+node.title;title.font = .systemFont(ofSize:12,weight:.semibold)
+  preview.stringValue=(node.previewKind=="task" ? L("任务："):"")+node.displayPreview;preview.font = .systemFont(ofSize:11);preview.textColor = .secondaryLabelColor
   status.stringValue=(node.pinned ? "📌 ":"")+node.state.label
-  if let badge=node.descendantBadge,let state=MenuSessionState(rawValue:badge){status.stringValue+=" · 子代理"+state.label}
+  if let badge=node.descendantBadge,let state=MenuSessionState(rawValue:badge){status.stringValue+=L(" · 子智能体")+state.label}
   status.font = .systemFont(ofSize:10);status.textColor = .secondaryLabelColor
   dot.wantsLayer=true;dot.layer?.cornerRadius=4
   let color:NSColor
@@ -66,9 +66,9 @@ final class SessionMenuRowView:NSTableCellView {
   disclosure.image=node.childIds.isEmpty ? nil:NSImage(systemSymbolName:expanded ? "chevron.down":"chevron.right",accessibilityDescription:nil)
   disclosure.isHidden=node.childIds.isEmpty
   disclosure.contentTintColor = .labelColor;disclosure.isBordered=false;disclosure.isEnabled = !node.childIds.isEmpty
-  disclosure.target=self;disclosure.action=#selector(toggle);disclosure.setAccessibilityLabel((expanded ? "收起":"展开")+node.sessionTitle+"的子代理")
+  disclosure.target=self;disclosure.action=#selector(toggle);disclosure.setAccessibilityLabel((expanded ? L("收起"):L("展开"))+node.displaySessionTitle+L("的子智能体"))
   if let value=node.progress {progress.completed=value.completed;progress.total=value.total}
-  progress.isHidden=node.progress==nil;progress.setAccessibilityLabel(node.progress.map{"任务 \($0.completed)/\($0.total)"})
+  progress.isHidden=node.progress==nil;progress.setAccessibilityLabel(node.progress.map{L("任务 {0}/{1}", ["0": String(describing: $0.completed), "1": String(describing: $0.total)])})
   let offset=CGFloat(min(depth,8))*12
   let disclosureWidth:CGFloat=node.childIds.isEmpty && depth==0 ? 0:28
   for child in [disclosure,dot,title,preview,status,progress] {child.translatesAutoresizingMaskIntoConstraints=false;addSubview(child)}
@@ -88,9 +88,9 @@ final class SessionMenuRowView:NSTableCellView {
  required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
  private func configureActions() {
   actions.orientation = .vertical;actions.alignment = .width;actions.spacing=2
-  picker.font = .systemFont(ofSize:10);picker.addItem(withTitle:interactions.count>1 ? "处理请求（\(interactions.count)）":"处理请求")
+  picker.font = .systemFont(ofSize:10);picker.addItem(withTitle:interactions.count>1 ? L("处理请求（{0}）", ["0": String(describing: interactions.count)]):L("处理请求"))
   picker.menu?.autoenablesItems=false
-  picker.setAccessibilityLabel("处理当前会话的审批或问答")
+  picker.setAccessibilityLabel(L("处理当前会话的审批或问答"))
   let callback=onInteraction
   func target(_ item:MenuInteraction,_ action:MenuInteractionAction)->MenuActionTarget {
    let result=MenuActionTarget{callback(item,action)};actionTargets.append(result);return result
@@ -109,7 +109,7 @@ final class SessionMenuRowView:NSTableCellView {
     }
    }
    if interactions.count==1 {for entry in menu.items {menu.removeItem(entry);picker.menu?.addItem(entry)}}
-   else {let entry=NSMenuItem(title:(item.kind=="approval" ? "审批":"问答")+" \(index+1)："+item.title,action:nil,keyEquivalent:"");entry.submenu=menu;picker.menu?.addItem(entry)}
+   else {let entry=NSMenuItem(title:(item.kind=="approval" ? L("审批"):L("问答"))+" \(index+1)："+item.title,action:nil,keyEquivalent:"");entry.submenu=menu;picker.menu?.addItem(entry)}
   }
   picker.isEnabled = !stale
   for child in [actions,picker]{controls.addSubview(child)}
@@ -153,8 +153,8 @@ private final class MenuSectionControls:NSView {
   }
   more.action=#selector(expand);previous.action=#selector(up);next.action=#selector(down)
   previous.image=NSImage(systemSymbolName:"chevron.up",accessibilityDescription:nil);next.image=NSImage(systemSymbolName:"chevron.down",accessibilityDescription:nil)
-  previous.setAccessibilityLabel("向上查看"+section);next.setAccessibilityLabel("向下查看"+section)
-  previous.toolTip="查看上面的会话";next.toolTip="查看更多会话"
+  previous.setAccessibilityLabel(L("向上查看")+L(section));next.setAccessibilityLabel(L("向下查看")+L(section))
+  previous.toolTip=L("查看上面的会话");next.toolTip=L("查看更多会话")
   more.font = .systemFont(ofSize:10)
   NSLayoutConstraint.activate([
    more.centerXAnchor.constraint(equalTo:centerXAnchor),more.widthAnchor.constraint(equalToConstant:80),more.topAnchor.constraint(equalTo:topAnchor),more.bottomAnchor.constraint(equalTo:bottomAnchor),
@@ -163,13 +163,15 @@ private final class MenuSectionControls:NSView {
  }
  required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
  func update(needed:Bool,expanded:Bool,list:MenuSessionList) {
+  previous.setAccessibilityLabel(L("向上查看")+L(section));next.setAccessibilityLabel(L("向下查看")+L(section))
+  previous.toolTip=L("查看上面的会话");next.toolTip=L("查看更多会话")
   isHidden = !needed;more.isHidden = !needed
   let navigation=expanded && (list.canMoveUp || list.canMoveDown)
   previous.isHidden = !navigation;next.isHidden = !navigation
   previous.isEnabled=list.canMoveUp;next.isEnabled=list.canMoveDown
   more.image=NSImage(systemSymbolName:expanded ? "chevron.up":"chevron.down",accessibilityDescription:nil)
-  more.title=navigation ? "收起":"";more.imagePosition=navigation ? .imageLeft:.imageOnly
-  more.setAccessibilityLabel((expanded ? "收起":"展开")+section);more.toolTip=(expanded ? "收起":"展开更多")+section
+  more.title=navigation ? L("收起"):"";more.imagePosition=navigation ? .imageLeft:.imageOnly
+  more.setAccessibilityLabel((expanded ? L("收起"):L("展开"))+L(section));more.toolTip=(expanded ? L("收起"):L("展开更多"))+L(section)
  }
  @objc private func expand(){onExpand?()}
  @objc private func up(){onStep?(-1)}
@@ -187,7 +189,7 @@ final class SessionMenuViewController:NSViewController {
  private let activeMore=MenuSectionControls("活动会话"),historyMore=MenuSectionControls("最近会话")
  private var activityExpanded=false,historyExpanded=false
  private var resizeAnimation:MenuResizeAnimation?
- private var hasRendered=false,currentInteractions:[MenuInteraction]=[]
+ private var renderedLanguage="",hasRendered=false,currentInteractions:[MenuInteraction]=[]
  private var snapshot:MenuSnapshot?,nodes:[String:MenuNode]=[:],expanded=Set<String>(),stale=false
  private let availableSize:NSSize
  private var activeHeight:NSLayoutConstraint!,historyHeight:NSLayoutConstraint!
@@ -197,9 +199,9 @@ final class SessionMenuViewController:NSViewController {
  required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
  override func loadView() {
   view=NSView(frame:NSRect(x:0,y:0,width:min(420,availableSize.width),height:min(280,availableSize.height)))
-  let heading=NSTextField(labelWithString:"DSH Notify"),gear=NSButton(image:NSImage(systemSymbolName:"gearshape",accessibilityDescription:"菜单栏设置") ?? NSImage(),target:self,action:#selector(settingsMenu))
-  let activityHeading=NSTextField(labelWithString:"活动会话"),historyHeading=NSTextField(labelWithString:"最近会话"),divider=NSBox()
-  heading.font = .systemFont(ofSize:14,weight:.semibold);gear.isBordered=false
+  let heading=NSTextField(labelWithString:"DSH Notify"),gear=NSButton(image:NSImage(systemSymbolName:"gearshape",accessibilityDescription:L("菜单栏设置")) ?? NSImage(),target:self,action:#selector(settingsMenu))
+  let activityHeading=uiLabel(L("活动会话")),historyHeading=uiLabel(L("最近会话")),divider=NSBox()
+  heading.font = .systemFont(ofSize:14,weight:.semibold);gear.isBordered=false;uiAccessibility(gear,L("菜单栏设置"))
   for label in [activityHeading,historyHeading]{label.font = .systemFont(ofSize:11,weight:.semibold);label.textColor = .secondaryLabelColor}
   connection.font = .systemFont(ofSize:10);connection.textColor = .secondaryLabelColor
   connection.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
@@ -215,7 +217,7 @@ final class SessionMenuViewController:NSViewController {
    list.onInteraction={[weak self] item,action in self?.onInteraction?(item,action)}
    list.table.keyHandler={[weak self,weak list] key in guard let list=list else{return false};return self?.handleKey(key,list:list) ?? false}
   }
-  activeList.table.setAccessibilityLabel("活动会话列表");historyList.table.setAccessibilityLabel("最近会话列表")
+  uiAccessibility(activeList.table,L("活动会话列表"));uiAccessibility(historyList.table,L("最近会话列表"))
   for child in [heading,gear,connection,activityHeading,activeList,activeMore,divider,historyHeading,historyList,historyMore,errorLabel,footer]{child.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(child)}
   activeHeight=activeList.heightAnchor.constraint(equalToConstant:64);historyHeight=historyList.heightAnchor.constraint(equalToConstant:64)
   activeMoreHeight=activeMore.heightAnchor.constraint(equalToConstant:0);historyMoreHeight=historyMore.heightAnchor.constraint(equalToConstant:0)
@@ -236,16 +238,16 @@ final class SessionMenuViewController:NSViewController {
    footer.leadingAnchor.constraint(equalTo:heading.leadingAnchor),footer.trailingAnchor.constraint(equalTo:errorLabel.trailingAnchor),footerSpacing,footer.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-8),footerHeight])
  }
  func update(snapshot:MenuSnapshot?,status:String,stale:Bool,error:String?,interactions:[MenuInteraction]=[]) {
-  let changed = !hasRendered || self.snapshot?.nodes != snapshot?.nodes || self.snapshot?.activeIds != snapshot?.activeIds || self.snapshot?.orphanIds != snapshot?.orphanIds || self.snapshot?.historyIds != snapshot?.historyIds || self.snapshot?.availability != snapshot?.availability || self.snapshot?.omittedCount != snapshot?.omittedCount || self.stale != stale || errorLabel.stringValue != (error ?? "") || currentInteractions != interactions
-  hasRendered=true;currentInteractions=interactions
+  let changed = renderedLanguage != UILocalization.language || !hasRendered || self.snapshot?.nodes != snapshot?.nodes || self.snapshot?.activeIds != snapshot?.activeIds || self.snapshot?.orphanIds != snapshot?.orphanIds || self.snapshot?.historyIds != snapshot?.historyIds || self.snapshot?.availability != snapshot?.availability || self.snapshot?.omittedCount != snapshot?.omittedCount || self.stale != stale || errorLabel.stringValue != (error ?? "") || currentInteractions != interactions
+  renderedLanguage=UILocalization.language;hasRendered=true;currentInteractions=interactions
   self.snapshot=snapshot;self.stale=stale;nodes=Dictionary(uniqueKeysWithValues:(snapshot?.nodes ?? []).map{($0.id,$0)})
   let grouped=Dictionary(grouping:interactions,by:{$0.sessionId})
   activeList.interactions=grouped;historyList.interactions=grouped
   expanded.formIntersection(Set(nodes.keys))
-  connection.stringValue=status;errorLabel.stringValue=error ?? ""
+  connection.stringValue=status;uiSet(errorLabel,error ?? "")
   let hasError = !errorLabel.stringValue.isEmpty,hasOverflow=(snapshot?.omittedCount ?? 0)>0
   errorLabel.isHidden = !hasError;errorHeight.constant=hasError ? 30:0;errorSpacing.constant=hasError ? 4:0
-  footer.stringValue=hasOverflow ? "另有 \(snapshot!.omittedCount) 条，请在 DSH 查看":""
+  footer.stringValue=hasOverflow ? L("另有 {0} 条，请在 DSH 查看", ["0": String(describing: snapshot!.omittedCount)]):""
   footer.isHidden = !hasOverflow;footerHeight.constant=hasOverflow ? 17:0;footerSpacing.constant=hasOverflow ? (hasError ? 2:4):0
   if changed{rebuild()}
  }
@@ -254,8 +256,8 @@ final class SessionMenuViewController:NSViewController {
   resizeAnimation?.invalidate();resizeAnimation=nil
   if reloadRows {
    let ids=(snapshot?.activeIds ?? [])+(snapshot?.orphanIds ?? [])
-   activeList.update(ids:ids,nodes:nodes,expanded:expanded,stale:stale,empty:snapshot?.availability=="loading" ? "正在加载会话…":"暂无本次连接的活动会话")
-   historyList.update(ids:Array((snapshot?.historyIds ?? []).prefix(5)),nodes:nodes,expanded:expanded,stale:stale,empty:"暂无最近会话")
+   activeList.update(ids:ids,nodes:nodes,expanded:expanded,stale:stale,empty:snapshot?.availability=="loading" ? L("正在加载会话…"):L("暂无本次连接的活动会话"))
+   historyList.update(ids:Array((snapshot?.historyIds ?? []).prefix(5)),nodes:nodes,expanded:expanded,stale:stale,empty:L("暂无最近会话"))
   }
   // Reserve space for both lists; neither must be reached by scrolling the other.
   let base=117+errorSpacing.constant+errorHeight.constant+footerSpacing.constant+footerHeight.constant
@@ -359,10 +361,10 @@ final class SessionMenuViewController:NSViewController {
   return false
  }
  @objc private func settingsMenu(_ sender:NSButton) {
-  let menu=NSMenu();for (title,action) in [("关闭菜单栏",#selector(disableMenu)),("打开 DSH",#selector(openDesktop))] {
+  let menu=NSMenu();for (title,action) in [(L("关闭菜单栏"),#selector(disableMenu)),(L("打开 DSH"),#selector(openDesktop))] {
    let item=NSMenuItem(title:title,action:action,keyEquivalent:"");item.target=self;menu.addItem(item)
   }
-  let note=NSMenuItem(title:"重新启用：DSH 设置 → DSH Notify",action:nil,keyEquivalent:"");note.isEnabled=false;menu.addItem(note)
+  let note=NSMenuItem(title:L("重新启用：DSH 设置 → DSH Notify"),action:nil,keyEquivalent:"");note.isEnabled=false;menu.addItem(note)
   menu.popUp(positioning:nil,at:NSPoint(x:0,y:sender.bounds.minY),in:sender)
  }
  @objc private func disableMenu(){onDisableMenu?()}

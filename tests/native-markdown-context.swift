@@ -6,6 +6,7 @@ func logLine(_ message: String) {}
 @main @MainActor
 struct NativeMarkdownContextTests {
     static func main() {
+  UILocalization.set("zh")
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
         let source = #"""
@@ -66,6 +67,12 @@ struct NativeMarkdownContextTests {
                       metrics["fonts"] as? Bool == true, metrics["localLink"] as? Bool == false,
                       (metrics["height"] as? Double ?? 0) > 500 else { print("FAIL offline WebKit layout: \(result)"); exit(1) }
                 print("PASS actual WebKit tables, 4 math delimiters, fonts, code, long cell wrapping, no external resources: \(metrics)")
+                view.webView.evaluateJavaScript("window.scrollTo(0,100)") { _, _ in
+                view.onRendered = { error in
+                    guard error == nil else { print("FAIL live context language update"); exit(1) }
+                    view.webView.evaluateJavaScript("({lang:document.documentElement.lang,role:document.querySelector('.role').textContent,tables:document.querySelectorAll('table').length,math:document.querySelectorAll('.katex').length,raw:document.body.textContent.includes('echo 中文'),scroll:document.scrollingElement.scrollTop})") { result,error in
+                        guard error == nil, let result=result as? [String:Any],result["lang"] as? String == "en",result["role"] as? String == "Your request",result["tables"] as? Int == 1,result["math"] as? Int == 4,result["raw"] as? Bool == true,abs((result["scroll"] as? Double ?? 0)-100)<2 else {print("FAIL English context/scroll/original content: \(String(describing:result))");exit(1)}
+                        print("PASS live English Markdown helper copy, original table/math/code content and scroll preservation")
                 // Programmatic external navigation has no permission to leave
                 // the view or open a browser. Verify the document is retained.
                 view.webView.evaluateJavaScript("location.href='https://example.com/not-allowed'") { _, _ in
@@ -77,6 +84,10 @@ struct NativeMarkdownContextTests {
                         print("PASS programmatic external navigation blocked")
                         withExtendedLifetime(window) { exit(0) }
                     }
+                }
+                    }
+                }
+                UILocalization.set("en")
                 }
             }
         }

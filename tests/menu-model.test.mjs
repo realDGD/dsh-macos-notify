@@ -99,3 +99,10 @@ test('cancellation causes preserve user intent and do not invent abnormal crashe
  assert.deepEqual(causes.map((_,i)=>rows.nodes.find(n=>n.id==='cancel-'+i).state),
   ['stopped','parent-stopped','hook-stopped','environment-stopped','cancelled','cancelled'])
 })
+
+test('synthetic empty previews remain distinct from literal matching user content',()=>{
+ const rows=buildMenuRows([fact('image',{running:true,userText:'![image](https://example.invalid/x)'}),fact('literal',{running:true,userText:'无文字输入'})])
+ assert.equal(rows.nodes.find(n=>n.id==='image').previewKind,'empty')
+ assert.equal(rows.nodes.find(n=>n.id==='literal').previewKind,'user')
+ assert.equal(rows.nodes.find(n=>n.id==='literal').preview,'无文字输入')
+})

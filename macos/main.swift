@@ -68,22 +68,8 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
         guard desktopLifecycle?.start() == true else { return }
         // Accessory apps have no default Edit menu. Install standard responder
         // commands so multiline fields support Cmd+C/V/A and undo normally.
-        let menu = NSMenu()
-        let appItem = NSMenuItem()
-        let appMenu = NSMenu(title: "DSH Notify")
-        appMenu.addItem(withTitle: "关闭问答窗口", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        appItem.submenu = appMenu
-        menu.addItem(appItem)
-        let editItem = NSMenuItem()
-        let edit = NSMenu(title: "编辑")
-        edit.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
-        edit.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
-        editItem.submenu = edit
-        menu.addItem(editItem)
-        NSApp.mainMenu = menu
+        UILocalization.poll(directory: stateDir)
+        installEditMenu()
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         NotificationInteractions.shared.register()
@@ -92,7 +78,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
             components.queryItems = [URLQueryItem(name: "session", value: id)]
             guard let self = self, let url = components.url,
                   self.openInDesktop(url, completion: completion) else {
-                completion("无法打开 DSH Desktop，窗口已保留。")
+                completion(L("无法打开 DSH Desktop，窗口已保留。"))
                 return
             }
         }
@@ -100,7 +86,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
             var components = URLComponents(string: "http://127.0.0.1:3080/")!
             components.queryItems = [URLQueryItem(name: "session", value: id)]
             guard let self = self, let url = components.url, self.openInDesktop(url, completion: completion) else {
-                completion("无法打开 DSH Desktop，请检查应用是否已安装。")
+                completion(L("无法打开 DSH Desktop，请检查应用是否已安装。"))
                 return
             }
         }, openDesktop: {
@@ -137,10 +123,30 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
         }
     }
 
+    private func installEditMenu() {
+        let menu = NSMenu()
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu(title: "DSH Notify")
+        appMenu.addItem(withTitle: L("关闭问答窗口"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appItem.submenu = appMenu
+        menu.addItem(appItem)
+        let editItem = NSMenuItem()
+        let edit = NSMenu(title: L("编辑"))
+        edit.addItem(withTitle: L("撤销"), action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: L("剪切"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: L("复制"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: L("粘贴"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: L("全选"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = edit
+        menu.addItem(editItem)
+        NSApp.mainMenu = menu
+    }
+
     // MARK: 状态文件 → 通知
 
     /// 消费 pending.txt：出现合法任务就投递一条通知。
     private func pump() {
+        if UILocalization.poll(directory: stateDir) { installEditMenu(); NotificationInteractions.shared.register() }
         writeHeartbeat()
         let queue = (stateDir as NSString).appendingPathComponent("notifications")
         let manager = FileManager.default
@@ -200,7 +206,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
             default: permission = "unknown"
             }
             let value: [String: Any] = ["version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0",
-                "pid": ProcessInfo.processInfo.processIdentifier, "updatedAt": Date().timeIntervalSince1970 * 1000, "permission": permission]
+                "pid": ProcessInfo.processInfo.processIdentifier, "updatedAt": Date().timeIntervalSince1970 * 1000, "permission": permission, "locale": UILocalization.language]
             let path = (stateDir as NSString).appendingPathComponent("helper-status.json")
             do {
                 try FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -338,7 +344,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
         } catch {
             logLine("desktop-request-failed \(error.localizedDescription)")
-            completion?("无法保存跳转请求，窗口已保留：\(error.localizedDescription)")
+            completion?(L("无法保存跳转请求，窗口已保留：{0}", ["0": String(describing: error.localizedDescription)]))
             return true
         }
         if let completion = completion {
@@ -352,7 +358,7 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
             configuration: configuration) { [weak self] app, error in
             if let error = error {
                 logLine("desktop-open-failed \(error.localizedDescription)")
-                DispatchQueue.main.async { self?.jumpWaiter.fail(requestId: requestId, message: "DSH Desktop 打开失败，窗口已保留：\(error.localizedDescription)") }
+                DispatchQueue.main.async { self?.jumpWaiter.fail(requestId: requestId, message: L("DSH Desktop 打开失败，窗口已保留：{0}", ["0": String(describing: error.localizedDescription)])) }
             } else {
                 logLine("opened-desktop \(app?.bundleIdentifier ?? desktopBundleID) session=\(id)")
             }

@@ -25,7 +25,7 @@ test('one private completion record per root turn, with no replay or duplicate t
   f.service.observe(root, event('turn/end'))
   f.service.error({ agent: { session: root }, turn: 1, error: new Error('late duplicate') })
   assert.equal(f.records().length, 1)
-  assert.equal(f.records()[0].title, '任务完成')
+  assert.equal(f.records()[0].title, 'Task completed')
   assert.equal(f.records()[0].sessionId, root.id)
   assert.equal(statSync(join(f.dir, 'notifications')).mode & 0o777, 0o700)
   assert.equal(statSync(join(f.dir, 'notifications', readdirSync(join(f.dir, 'notifications'))[0])).mode & 0o777, 0o600)
@@ -66,7 +66,7 @@ test('errors are immediate, bounded and deduplicated, never raw logs', t => {
   f.service.error({ agent: { session: root }, turn: 2, error: new Error('private error content') })
   f.service.observe(root, event('turn/end', 2, 'error'))
   assert.equal(f.records().length, 1)
-  assert.equal(f.records()[0].title, '任务出错')
+  assert.equal(f.records()[0].title, 'Task failed')
   assert.equal(JSON.stringify(f.service.status()).includes('private error content'), false)
 })
 test('notification preferences suppress reminders without consuming Host answers', t => {

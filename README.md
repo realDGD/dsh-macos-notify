@@ -1,113 +1,211 @@
-# DSH macOS Notify
+# DSH Notify
 
-Native interactive macOS notifications for **DeepSeek Harness Desktop**. The DSH plugin and the background **DSH Notify.app** work together; notification clicks return to the corresponding Desktop workspace and session.
+**简体中文** · [English](README.en.md)
 
-原生 macOS 通知、审批与完整问答：通知点击返回 DSH Desktop 对应会话，无须浏览器或额外模型服务。
+为 **DeepSeek Harness Desktop** 提供原生 macOS 通知、审批、完整问答和菜单栏会话面板。收到通知后，可以直接处理请求或返回对应工作区与会话。
 
-- Allow once / Deny directly from approval notifications; default click opens complete approval details, command, formatted parameters (with exact original view/copy) and related context.
-- One question reminder opens a scrollable multi-question form. Every question supports its original choices and independent multiline text input; submit the full batch once.
-- Soft-wrapped commands/parameters, session names, Markdown context with tables and LaTeX formulas, and Shell/JSON highlighting. Display formatting never changes submitted option labels or copied commands.
-- DSH remains the decision owner. The first accepted answer wins; answered/cancelled requests are withdrawn and stale buttons cannot repeat an action. Temporary disconnection preserves open drafts.
-- Optional native menu bar: prioritized active sessions, expandable subagents and the five most recent root conversations, with state labels and actual task progress.
-- Standalone completion/error producer, optional child-task summaries, per-kind switches, sound and current-session foreground quiet mode.
-- **DSH Settings → DSH Notify** shows connection/helper/permission/version status and a safe test-notification button. Test status distinguishes queueing, macOS acceptance, waiting for a click and confirmed Desktop session selection.
+项目由 DSH 插件和后台助手 **DSH Notify.app** 组成。助手跟随 Desktop 启停，无须浏览器、DSH Bridge 或额外模型服务。
 
-This is a community plugin, not an official DeepSeek product. Currently verified with **DSH Desktop 0.2.0-rc.2**. See [compatibility and verification](docs/compatibility.md).
+这是社区插件。当前提供 **0.5.0 预发布版**，稳定 `v0.5.0` 尚未发布；版本和下载见 [Releases](https://github.com/realDGD/dsh-macos-notify/releases)。
 
-## Installation
+## 能做什么
 
-Requirements: macOS 13 or later, official DSH Desktop, Node.js 22+ and Apple's Command Line Tools. Full Xcode and a paid signing certificate are not needed for local source builds. The current local verification machine is macOS 27.0.1 / Apple Silicon; older macOS and Intel machines need additional real-device validation.
+| 功能 | 使用方式 |
+| --- | --- |
+| 原生通知 | 接收任务完成、报错、审批和问答提醒，点击返回对应 DSH 会话。 |
+| 快捷审批 | 从系统通知或菜单栏选择「允许一次」或「拒绝」；需要核对命令时打开审批详情。 |
+| 完整问答 | 一条提醒打开整组问题，每题保留选项和独立文字输入，支持单选、多选与整批提交。 |
+| 会话面板 | 查看活动会话、嵌套子智能体和最近 5 条主会话，显示状态与任务进度。 |
+| 上下文与代码 | 查看 Markdown 表格、公式与代码；Shell/JSON 高亮，命令和参数自动换行。 |
+| 跟随 DSH 语言 | 界面跟随 DSH 的中文或英文设置；会话名、题干、选项、回答和命令保留原文。 |
 
-1. Clone this repository:
+DSH 决定请求是否有效。先被接受的回答生效；已回答、取消或过期的请求会撤回，旧按钮不会重复执行。短暂断连时，已打开窗口中的草稿保留；结果未确认时不会自动重试。
+
+## 界面预览
+
+截图和录屏使用虚构的工作区、会话与请求，均来自真实原生界面。它们取自较早的中文演示构建，按钮文案以当前版本和语言为准；点击图片可查看原图。
+
+### 菜单栏与快捷操作
+
+活动与最近会话分区展示。等待审批时直接允许或拒绝，等待回答时打开完整问答；展开箭头查看更多会话与嵌套子智能体。
+
+<table>
+<tr><th>菜单栏与快捷操作</th><th>鱼图标状态与旋转动画</th></tr>
+<tr>
+<td valign="top"><a href="docs/images/menu-sessions.png"><img src="docs/images/menu-sessions.png" alt="原生菜单栏面板：活动与最近会话、审批按钮和完整问答入口" width="400"></a></td>
+<td valign="top"><a href="docs/images/menu-icon-states.gif"><img src="docs/images/menu-icon-states.gif" alt="鱼图标的空闲、运行、待处理、异常和完成状态演示" width="400"></a></td>
+</tr>
+</table>
+
+有任务运行时，鱼图标旋转。待审批或问答用橙色，异常中断用红色，完成用绿色；提醒优先级为 **待处理 > 异常 > 完成**。打开面板后恢复白色图标，用户主动停止不会产生异常提醒。
+
+### 审批通知与审批详情
+
+通知提供允许、拒绝和 **「查看详情」**。点击「查看详情」，会直接打开右侧的 **审批详情窗口**，显示请求原因、待执行命令、完整参数和相关上下文。
+
+<table>
+<tr><th>审批通知与操作按钮</th><th>审批详情：先查看命令和权限</th></tr>
+<tr>
+<td valign="top"><a href="docs/images/notification-approval.png"><img src="docs/images/notification-approval.png" alt="macOS 审批通知：允许、拒绝与查看详情操作菜单" width="400"></a></td>
+<td valign="top"><a href="docs/images/approval-details.png"><img src="docs/images/approval-details.png" alt="原生审批详情：命令高亮、完整参数、原文与上下文入口" width="400"></a></td>
+</tr>
+</table>
+
+参数按行排版，命令与参数自动换行。「查看原文」和「复制原始参数」保留原始内容；显示格式不会改动真正提交给 DSH 的请求。
+
+### 问答通知与完整问答
+
+点击通知中的 **「打开完整问答」**，会直接打开右侧的 **完整问答窗口**。每题都有自己的选项和文字输入，最后一次提交整组回答。
+
+<table>
+<tr><th>问答通知与打开按钮</th><th>完整问答：每题选项加独立输入</th></tr>
+<tr>
+<td valign="top"><a href="docs/images/notification-questionnaire.png"><img src="docs/images/notification-questionnaire.png" alt="macOS 问答通知：两道问题提醒和打开完整问答按钮" width="400"></a></td>
+<td valign="top"><a href="docs/images/questionnaire.png"><img src="docs/images/questionnaire.png" alt="双题问答：单选、多选、独立补充输入和整批提交" width="400"></a></td>
+</tr>
+</table>
+
+在 DSH 中先回答后，通知中的旧请求会失效。点击「回到 DSH 会话」并确认跳转成功后，问答窗口自动关闭。
+
+图片来源和演示范围见 [图片说明](docs/images/README.md)。演示不会执行命令、调用模型或提交真实回答。
+
+<a id="installation"></a>
+
+## 安装
+
+**推荐直接在 DeepSeek Harness Desktop 中安装。** 准备好构建工具后，复制一个插件地址即可；安装器会在本机编译并安装 **DSH Notify.app**。
+
+> 从 **v0.5.0-preview.2** 开始支持自动安装助手。旧版 `v0.5.0-preview.1` 仍需使用下方的「手动安装」。
+
+需要 **macOS 13 或更新版本**和官方 **DSH Desktop**，当前验证版本为 `0.2.0-rc.2`。通过 Desktop 安装会使用其内置 Node.js/pnpm；只有手动构建或开发才需要另行准备 Node.js 22+。旧系统与 Intel 的实机验证范围见 [兼容性说明](docs/compatibility.md)。
+
+### 推荐：通过 DSH Desktop 安装
+
+1. **准备构建工具。** 在 macOS「终端」执行下面的命令，按系统提示完成 Apple Command Line Tools 安装；已安装时可直接继续。无须完整 Xcode 或付费证书。
 
    ```sh
-   git clone https://github.com/realDGD/dsh-macos-notify.git
-   cd dsh-macos-notify
-   npm ci --ignore-scripts
-   ```
-
-2. Build and install the native helper:
-
-   ```sh
-   # Run once if Command Line Tools are not installed:
    xcode-select --install
-   bash macos/install.sh
    ```
 
-   Installation creates `~/Applications/DSH Notify.app`. The Desktop plugin starts it quietly when DSH opens; it exits when DSH quits. Minimizing or closing a Desktop window keeps the helper running while Desktop remains open. No login LaunchAgent is created; upgrades retire and back up the old managed startup entry. Allow notifications for **DSH Notify** when macOS asks. If Desktop is installed at a different location, set `DSH_DESKTOP_APP` to its application path before building. Builds use the icon from your locally installed official Desktop; official binary/icon assets are not included in this repository or release.
+2. **添加插件。** 打开 DSH Desktop，进入侧边栏 **插件 → 添加插件**，粘贴以下地址，确认安装来源并点击安装：
 
-3. In DSH Desktop, open the left sidebar’s **Plugins → Add plugin**, enter the absolute path to this cloned directory. Install and enable it, then restart Desktop once. This path is needed only during installation.
+   ```text
+   github:realDGD/dsh-macos-notify
+   ```
 
-   The current `0.5.0` development version is available as `github:realDGD/dsh-macos-notify#main`. To freeze a verified revision, replace `main` with its full commit SHA and build the helper from the same revision. `v0.5.0` is not published yet. Existing JavaScript is committed; no package-install build hook runs.
+3. **允许构建。** 如果提示构建脚本被阻止，核对此插件后点击 **「允许这些脚本并重试」**，等待安装完成。助手会安装到 `~/Applications/DSH Notify.app`；已有匹配助手会复用，升级会保留设置并备份旧版。
+4. **启用并重启。** 安装成功后启用 **DSH Notify**（英文按钮为 **Enable now**）。保存当前任务，按 **⌘Q** 退出 DSH Desktop，再重新打开；只关闭窗口不会退出应用。助手会随 Desktop 自动启动。macOS 询问时允许 **DSH Notify** 的通知。
+5. **确认可用。** 打开 **设置 → DSH Notify**，检查助手连接和通知权限，发送安全测试通知并点击，确认打开对应会话。出现「系统已接受」只说明通知已投递，实际点击成功才证明跳转可用。
 
-4. Open **Settings → DSH Notify**. Check that the helper is running and notifications are authorized. Send the safe test notification, then actually click it. The test status becomes confirmed only after Desktop verifies the target session; queueing or macOS acceptance alone does not prove a visible banner or successful navigation.
+[DSH 官方插件安装说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-plugin-manager/README.md)介绍了安装、构建授权和启用操作。本地编译仍需构建脚本授权和 macOS 通知权限。
 
-For CLI installations the equivalent plugin step is `dsh plugin --profile <your-profile> add <path-to-checkout>`. Desktop users do not need to install another npm DSH executable. The plugin `.tgz` contains runtime/helper sources and install scripts; the separate `-source.tar.gz` contains the complete tracked repository, tests and CI. See [installation, upgrade and recovery](docs/install.md) and [release artifacts and verification](docs/release.md). Published versions are listed in [GitHub Releases](https://github.com/realDGD/dsh-macos-notify/releases); the current development version should not be mistaken for an accepted stable release.
+<details>
+<summary>也可以使用终端命令</summary>
 
-## Upgrade
+先在 Desktop 的应用菜单中找到 **管理 dsh 命令 / Manage dsh Command…** 并安装命令，再打开一个新的终端执行：
 
-Update the checkout to the matching release, run `npm ci --ignore-scripts`, close any native question/approval windows, then run `bash macos/install.sh` again. The installer retains previous helper applications under the private state directory, preserves preferences and verifies that the previous helper exited before replacing it.
+```sh
+dsh plugin --profile desktop add github:realDGD/dsh-macos-notify
+```
 
-Reinstall the plugin from the new release using DSH's plugin manager if necessary, and restart Desktop to load the new Host/client modules. Check the actual plugin and helper versions in **DSH Notify**. Do not judge success from the source version alone.
+安装后回到 Desktop 的插件列表确认已启用，再按上面的第 4、5 步重启和验证。若终端提示构建脚本被阻止，可改用插件管理器完成授权；需要手动配置时，按 [详细安装说明](docs/install.md) 处理当前插件的精确版本键。
 
-For existing `dsh-notify-web` / `DSH Jump.app` users: the helper installation moves the known old app into a backup. Remove the old plugin and its old native completion/error relay from the active DSH bundle list before enabling this standalone package, to avoid duplicate notifications. Other plugins and conversation history are unaffected. The historical helper bundle ID and local state namespace are intentionally preserved so local notification permission and navigation compatibility can survive migration.
+Desktop 使用 `desktop` profile；`--profile web` 会安装到单独的 Web 环境。使用 Desktop 提供的 `dsh` 命令，无须另外安装 npm 版 CLI。详见 [DSH 官方终端命令说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.md#terminal-command)。
 
-## Uninstall
+</details>
 
-Remove `dsh-macos-notify` in DSH's plugin manager, then run:
+### 安装遇到困难？让 DeepSeek Harness 帮忙
+
+把下面的请求复制到 DSH 的新会话中。它会有明确的检查和安装目标；系统对话框、构建授权或重启需要你操作时，让它给出具体步骤。
+
+```text
+请帮我在这台 Mac 的官方 DeepSeek Harness Desktop 中安装 DSH Notify：
+https://github.com/realDGD/dsh-macos-notify
+
+先阅读仓库 README 和 docs/install.md，核对 DSH 版本、macOS 13+ 要求和 Apple Command Line Tools。
+使用 Desktop 的 desktop profile，优先通过插件管理器或 Desktop 自带的 dsh CLI 安装。
+检查 ~/Applications/DSH Notify.app 是否已编译安装；如果当前公开版本不支持自动构建，按同一版本的源码文档补装助手。
+保留已有设置和旧助手备份。需要我完成系统安装、构建授权或通知权限时，请告诉我具体操作。
+安装完成后，让我先保存当前任务，再退出并重新打开 Desktop，最后指导我发送安全测试通知并点击验证对应会话。
+```
+
+<details>
+<summary>手动安装（旧预览版本、自动安装失败或开发使用）</summary>
+
+先完成上面的 Command Line Tools 安装，并准备 [Node.js 22+](https://nodejs.org/en/download)。打开终端，依次执行：
+
+```sh
+git clone https://github.com/realDGD/dsh-macos-notify.git
+cd dsh-macos-notify
+npm ci --ignore-scripts
+bash macos/install.sh
+pwd
+```
+
+最后的 `pwd` 会输出源码目录的绝对路径。把该路径填入 Desktop 的 **插件 → 添加插件**，安装并启用，然后按推荐流程的第 4、5 步重启和验证。也可下载 [Releases](https://github.com/realDGD/dsh-macos-notify/releases) 的**完整源码包**，解压后进入源码目录，从 `npm ci --ignore-scripts` 开始执行上面的命令。
+
+插件与助手应来自同一版本。默认从 `/Applications/DeepSeek Harness.app` 复制本机官方图标；Desktop 位于其他路径时，按 [详细安装说明](docs/install.md) 指定路径。
+
+</details>
+
+### 常见安装问题
+
+| 遇到的问题 | 下一步 |
+| --- | --- |
+| 找不到 `swiftc` 或提示缺少构建工具 | 完成 `xcode-select --install` 的系统安装，再回到 DSH 点击重试。 |
+| 构建脚本被阻止 | 在 DSH 安装对话框点击「允许这些脚本并重试」。 |
+| 找不到 `dsh` 命令 | 使用推荐的插件管理器安装，或在 Desktop 应用菜单安装/修复 dsh 命令后打开新终端。 |
+| 提示版本不兼容 | 按 [兼容性说明](docs/compatibility.md) 选择匹配的 DSH 和插件版本。 |
+| 助手未安装或升级被拒绝 | 旧预览版按手动步骤补装；升级时先处理草稿并关闭原生问答/审批窗口，再重试。 |
+| 无法访问 GitHub | 检查 GitHub 连接后重试，或使用已下载的完整源码包；更换 npm 镜像不能替代 GitHub 仓库下载。 |
+| 安装后没有通知 | 检查 macOS **系统设置 → 通知 → DSH Notify** 的权限与专注模式，再从插件设置发送测试通知。 |
+
+助手跟随 Desktop 启停，不设置开机自启。更详细的构建、恢复和卸载步骤见 [安装说明](docs/install.md)。
+
+## 日常使用
+
+- **菜单栏**：点击鱼图标打开面板。活动区优先显示置顶、待处理或异常会话，其次是进行中的会话；最近区最多显示 5 条主会话，排除活动区已展示的会话与子智能体。
+- **展开与进度**：两区按需显示展开箭头，没有滚轮翻动或滚动条。任务分数显示在进度环内，全部完成后变为绿色勾号；没有计划的会话不显示进度环。
+- **快捷操作**：审批提供竖排允许/拒绝按钮，问答打开完整表单。同一会话有多项请求时，通过「处理请求」菜单分别操作。
+- **通知设置**：可分别开关提醒类型、系统提示音、子智能体结果、等待子智能体后汇总完成，以及查看当前会话时的静默提醒。
+- **菜单栏开关**：在 DSH Notify 设置或面板齿轮中关闭；通知和原生问答/审批窗口继续可用。重新启用请进入 DSH 设置。
+- **语言切换**：修改 DSH 的语言设置即可。已打开窗口会更新界面文案并保留选项与草稿；已投递通知保留发送时的语言。
+
+相关上下文使用本地 Markdown/KaTeX 渲染，支持标题、列表、引用、表格、公式和代码。远程图片不自动加载，原始 HTML 不执行；超长上下文会注明截取范围，可返回 DSH 阅读全文。
+
+## 升级与卸载
+
+升级前先保存当前任务、处理未提交草稿，再关闭原生问答/审批窗口。当前 DSH 插件管理器通过**移除插件后重新添加**安装新版；添加包含自动安装脚本的版本时，会同步检查和更新助手。手动源码安装仍运行 `npm ci --ignore-scripts` 和 `bash macos/install.sh`，再重新添加对应源码目录。最后正常重启 Desktop。
+
+安装器保留设置，备份旧助手，并确认旧进程退出后再替换应用。旧 `dsh-notify-web` / `DSH Jump.app` 用户应移除旧通知插件和旧完成/报错 relay，避免重复提醒；历史助手身份保留以延续通知权限和兼容性。
+
+卸载时先在 DSH 插件管理器中移除本插件，再从源码目录运行：
 
 ```sh
 bash macos/uninstall.sh
 ```
 
-The installer removes only its owned helper and startup file. It retains preferences and application backups. Restart Desktop to unload the Host plugin. Unknown applications/startup entries are never overwritten or removed.
+然后重启 Desktop。卸载保留设置与应用备份，只移除本安装器管理的文件。
 
-## Session menu bar
+## 隐私与边界
 
-Click the DSH Notify menu-bar icon to open the native session panel. Each row shows `workspace · session name`, one line of the latest human input while active, or the latest formal answer from the completed turn. A subagent without human input uses its own task text. Normal user forks remain independent conversations.
+- 不增加网络监听、云服务或模型会话。会话选择与设置使用 DSH 已认证的连接；原生助手与插件通过当前用户的私有本地文件交换数据。
+- 问答和审批内容需要本地暂存以显示表单，不会随诊断导出。报告问题时请勿上传本地状态、令牌、会话正文或未脱敏截图。
+- macOS 控制通知显示、专注模式和锁屏预览；静默只影响提醒，不会自动批准、拒绝或回答。
+- 当前支持一个本地活动 Host/状态目录，多个 Host 共用同一目录尚未验证。旧系统与 Intel 的实机支持尚未验收。
+- 稳定 0.5.0 发布前仍有生产菜单展开/收起、历史会话点击与匹配跳转确认、菜单到问答的剩余草稿检查。源码测试和构建通过不替代这些真实验收。
 
-Official Pins come first, followed by requests waiting for input/approval and failures or involuntary interruption, then running sessions. The history section contains up to five recent eligible root conversations; subagents and pinned/activity rows do not consume those slots. Expand the disclosure arrow to inspect nested subagents. A waiting or pinned descendant promotes its ancestor branch while preserving the ancestor’s own state. Colors always have text labels. A ring counts completed/current task items for that row only; no plan means no ring.
-
-A row click closes the popover and uses verified Desktop session selection. Navigation failure is shown when you reopen the panel. Existing question-window drafts remain intact. Keyboard arrows navigate and expand/collapse; Return opens a session and Escape closes the panel. The panel adapts to available screen space and ignores mouse-wheel/trackpad scrolling.
-
-Pending approvals offer a vertical pair of green **允许本次** and red **拒绝** buttons within their session row. Questions offer **打开完整问答**, reusing the complete multi-question panel and any existing draft. Multiple requests in one session use a **处理请求** menu with a separate entry for each request; narrow rows use the same menu. Actions always resolve the latest exact request, share notification submission guards and await the Host result. Disconnected or submitting approvals cannot be clicked; accepted or expired requests disappear. A request inherited from a child belongs to that child's row, so approving a parent cannot accidentally answer its subagent.
-
-Activity starts with sessions running or awaiting input when the Host connects, then follows turns actually started during that connection. It retains their completions and failures; older failures and dormant pins belong to recent history. Unregistered working directories are labeled **未分组**, matching DSH's grouping. Official cancellation causes distinguish user stops, parent stops, hook cancellations and environment shutdown from actual failures or crash recovery; unknown legacy causes stay explicit.
-
-The header puts connection status beside the app name. Activity and the five recent root sessions have separate fixed viewports, sharing four compact rows. Both start with two slots and lend unused slots to the longer section. A downward arrow appears only when more rows remain; it expands that section, then points upward to collapse it. A display-paced 0.26-second height transition respects macOS Reduce Motion and survives unchanged Host heartbeats (screen-rate timer fallback on macOS 13). If an expanded section exceeds screen height, separate up/down arrows reveal the remaining rows while keeping its root's collapse control reachable. Fitting and empty sections have no expansion controls or scrollbars. Activity shows all connection-local statuses in Host order; old private read marks are ignored. Status dots are centered in a dedicated left gutter and vertically centered on their row. Task fractions sit inside the ring; a complete todo list shows a green check.
-
-The menu-bar symbol is a white **fish.circle**. Only its fish rotates while the current batch has running turns, with a one-second pause between rotations. Concurrent runs share a batch; a run started after the batch stops begins a fresh batch, so retained old activity cannot color it. The ring uses orange (`#F78318`) for questions/approvals, then red (`#FF5356`) for abnormal stops, then green (`#62BA46`) for completion. When no turns remain running, an alert becomes **fish.circle.fill**; opening the panel acknowledges it and restores the white outline. User, parent and rule cancellations do not create alerts. A newer result may alert again; disconnected data stops the animation without inventing completion.
-
-Enable or disable it in **DSH Settings → DSH Notify → 菜单栏会话面板**. The panel’s gear can also disable it through the same validated setting. Notifications and question/approval windows keep working. To re-enable, use the existing DSH settings section. Initial discovery shows loading; a missing service shows unavailable, and an absent Host heartbeat marks retained data stale after six seconds. Snapshots are private, capped at 4 MiB/2,000 nodes, with an explicit omitted count when limited. History refreshes no more frequently than every 30 seconds. One active local Host/state namespace is supported.
-
-## Privacy and behavior
-
-No additional network listener, webhook, cloud service or model session is used. The official authenticated DSH Connection carries navigation and settings RPC. Same-user Host/helper records are exchanged atomically in a private directory (`0700`, files `0600`). Local question/approval content is needed for the native form; it is not exported by diagnostics. macOS notification previews can expose displayed text on the lock screen; use macOS preview settings according to your preference.
-
-Quiet mode suppresses reminders only. Explicitly opened forms stay available, and it never approves/rejects or answers a request automatically. Turning off a notification type does not disable that underlying DSH interaction.
-
-Task aggregation waits for descendant runs observed by the active plugin. A newly started root turn cancels its old held completion. Aborted/interrupted/blocked turns are silent. Cold installation does not replay old idle sessions. Older turn events cannot end a newer child run, and background windows cannot clear another window’s foreground quiet state.
-
-## Development
+## 开发与验证
 
 ```sh
 npm ci --ignore-scripts
 npm test
-npm run test:native     # macOS only; real AppKit components
+npm run test:native       # macOS：真实 AppKit/WebKit 组件
 npm run check:release
-npm pack --dry-run
-# Maintainers only; Python 3.9+ (standard library):
-npm run test:release
-npm run audit:privacy
-npm run package:release -- --output dist/release
 ```
 
-Node tests use the pinned DSH Cordis dependency and do not silently skip lifecycle tests. Use a clone or the full source archive to run the complete test suite. Python is used only by maintainers' release tooling, not by the plugin or helper. To verify against a particular installed Desktop artifact, set `DSH_CORDIS_MODULE` to that artifact's Cordis module. Public CI checks Node versions, native compilation/layout and package/privacy completeness. Real macOS notification acceptance and Desktop session selection remain separate live checks.
+完整源码包包含测试、锁文件、CI 和构建脚本；插件 `.tgz` 包含运行时与助手源码，但不包含完整测试套件。维护者发布流程与归档校验见 [发布文档](docs/release.md)，变更见 [CHANGELOG](CHANGELOG.md)。
 
-Question/choice labels use native Markdown text formatting. The expanded context pane uses bundled, offline Markdown and KaTeX rendering for headings, lists, quotes, tables, code and formulas (`$…$`, `$$…$$`, `\(...\)`, `\[…\]`). Long context stays fully scrollable; long table cells wrap. A wide formula has its own scroll area so it remains readable. Shell/JSON have semantic colors; other code blocks remain monospaced. Remote images are shown as text placeholders, raw HTML is inert, and only explicitly clicked HTTP(S) links open externally.
+## 许可证
 
-Approval parameters are indented without re-encoding JSON keys, numeric values or escapes. **查看原文** switches the display; **复制原始参数** copies the exact original. Both parameters and commands soft-wrap without horizontal scrollbars. These changes affect display only, never the underlying tool request.
-
-## License
-
-MIT, see [LICENSE](LICENSE). The DSH name and locally sourced official icon identify integration with Desktop; this repository does not grant rights to third-party branding. Existing local notification permission uses a historical bundle identifier that is not a credential.
+[MIT](LICENSE)。DSH 名称与本地取得的官方图标用于说明集成对象，第三方品牌权利不由本仓库授权。离线渲染资源及许可证见 [THIRD_PARTY](THIRD_PARTY.md)。

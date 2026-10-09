@@ -5,12 +5,32 @@
 ## 环境与版本
 
 - 官方 DeepSeek Harness Desktop，当前验证版本 `0.2.0-rc.2`。
-- macOS 13+ 编译目标；真实本机验证是 Apple Silicon，旧系统与 Intel 仍需设备验收。
-- Node.js 22+；构建助手需要 Apple Command Line Tools，无须完整 Xcode 或付费证书。
+- 最低运行和编译目标为 macOS 13；SDK 13 使用计时器动画，SDK 14+ 构建保留新系统屏幕刷新接口。真实本机验证是 Apple Silicon，旧系统与 Intel 仍需设备验收。
+- Desktop 插件管理器及 Desktop 自带 CLI 使用其内置 Node.js/pnpm；手动源码安装或开发需要独立 Node.js 22+。构建助手需要 Apple Command Line Tools，无须完整 Xcode 或付费证书。
 - 本仓库提供源码，不提供已公证的通用 `.app`。本机构建使用当前机器架构。
-- `0.5.0` 当前是开发版本，未发布稳定 tag。安装 `main` 时应记录提交 SHA，并使插件和助手来自同一提交。已发布版本见 [Releases](https://github.com/realDGD/dsh-macos-notify/releases)。
+- `0.5.0` 当前为预发布版本，未发布稳定 tag。自动安装从 `v0.5.0-preview.2` 开始支持；安装 `main` 时应记录提交 SHA，并使插件和助手来自同一提交。版本见 [Releases](https://github.com/realDGD/dsh-macos-notify/releases)。
 
-## 从 Git 仓库安装
+## 插件安装时自动构建助手
+
+此流程适用于 `v0.5.0-preview.2` 及之后的 Git/插件包。获得构建脚本授权后会同步安装助手；旧版 `v0.5.0-preview.1` 使用后面的手动安装方式。
+
+先准备 Apple Command Line Tools：`xcrun --find swiftc`。缺少时执行 `xcode-select --install`，完成系统安装后重试，不需要完整 Xcode。使用官方 Desktop 提供的 CLI：
+
+```sh
+dsh plugin --profile desktop add github:realDGD/dsh-macos-notify
+```
+
+Desktop 插件管理器可直接添加同一个 GitHub 地址。若提示脚本被阻止，选择 **允许这些脚本并重试**；CLI 会列出该 profile 的 `pnpm-workspace.yaml` 和此插件的精确版本键，将**该键**设为 `true` 后重试原命令。不同 Git 提交可能有不同授权键，更新时按提示复核，不要开启全局依赖脚本权限。DSH 会先拦截尚未授权的构建，助手不会因此被安装。
+
+授权后，从当前插件包的 Swift/资源源码构建本机架构助手，验证签名，再安装到 `~/Applications/DSH Notify.app`。设置与旧版备份保留，匹配且完整的已安装助手复用。需要替换且原生面板仍打开时，安装器拒绝升级；先处理草稿、关闭面板，再重试。安装器也核对运行中助手的实际状态目录；目录无法确认时须先正常退出 Desktop 和助手再升级，不会猜测目录后终止进程。没有安装同一插件的其他 profile 不会因此获得插件。`--profile web` 同样可以触发助手编译，但不会把插件装到 Desktop 的 `desktop` profile；当前原生运行范围仍是官方 Desktop。
+
+安装期间不弹出助手或通知权限窗口。正常重启 Desktop，插件启动助手后再授予 macOS 通知权限。助手跟随 Desktop 启停，不创建开机 LaunchAgent。本地编译使用 ad-hoc 签名，不等于 Apple 公证，也不绕过 DSH/macOS 安全策略；分发构建好的 App 仍需另外处理签名、公证与下载隔离属性。
+
+构建与签名失败时保留旧助手。多个 profile 同时安装时，公共应用目录的安装锁阻止并发替换。若安装进程被强制杀死留下 `~/Applications/.DSH Notify.install.lock`，先读取记录的 PID 并确认该进程已退出，再移除这一锁文件重试，不要删除仍在使用的锁。
+
+需要只装插件时，为安装命令设置 `DSH_NOTIFY_SKIP_NATIVE_INSTALL=1`，之后从匹配源码运行 `bash macos/install.sh`。`--ignore-scripts` 也会跳过自动安装。`DSH_NOTIFY_INSTALL_HOME` 是隔离验证专用目录覆盖，日常安装无需设置；`DSH_HOME` 自定义仍按该状态目录保存生产设置与备份。
+
+## 手动从 Git 仓库安装
 
 ```sh
 git clone https://github.com/realDGD/dsh-macos-notify.git
@@ -28,7 +48,7 @@ DSH_DESKTOP_APP="/Applications/DeepSeek Harness.app" bash macos/install.sh
 
 助手安装到 `~/Applications/DSH Notify.app`，构建时复制本机官方 Desktop 的图标。仓库和压缩包不分发官方图标。系统弹出通知权限提示时，允许 **DSH Notify** 的通知。
 
-在 Desktop 的 **Plugins → Add plugin** 中填写仓库的绝对路径，安装并启用。也可以使用 `github:realDGD/dsh-macos-notify#main`，或将 `main` 换成已核验的完整 SHA；助手仍需从相同提交安装。Desktop 用户无须全局安装 npm 版 `dsh`。首次安装后正常退出并重新打开 Desktop，确保 Host 和客户端加载新模块。
+在 Desktop 的 **Plugins → Add plugin** 中填写仓库的绝对路径，安装并启用。也可以使用 `github:realDGD/dsh-macos-notify#main`，或将 `main` 换成已核验的完整 SHA；包含自动安装脚本的版本可直接构建助手，旧版本仍需从相同提交手动安装。Desktop 用户无须全局安装 npm 版 `dsh`。首次安装后正常退出并重新打开 Desktop，确保 Host 和客户端加载新模块。
 
 助手跟随 Desktop 启停，不创建开机 LaunchAgent。关闭或最小化 Desktop 窗口时，只要应用进程仍在，助手会继续运行。菜单栏开关只影响菜单面板，通知与问答仍可使用。
 
@@ -45,12 +65,12 @@ DSH_DESKTOP_APP="/Applications/DeepSeek Harness.app" bash macos/install.sh
 
 将文件放在同一目录并先执行 `shasum -a 256 -c SHA256SUMS`。完整源码包解压后进入唯一的 `dsh-macos-notify-VERSION/` 目录，执行 `npm ci --ignore-scripts` 与 `bash macos/install.sh`，再通过 Desktop 插件管理器添加该目录。
 
-插件 `.tgz` 可由 DSH 包管理器安装；它不包含完整测试套件。需要从同包构建助手时，可将 `.tgz` 解压到专用目录，进入 `package/` 后执行相同安装命令。不要将这个安装包误认为完整源码包，也不要对不同版本的助手与插件混搭。
+插件 `.tgz` 可由 DSH 包管理器安装；包含新安装脚本的包在授权构建脚本后自动编译助手。它不包含完整测试套件；需要手动构建时，将 `.tgz` 解压到专用目录，进入 `package/` 后执行相同安装命令。不要将这个安装包误认为完整源码包，也不要对不同版本的助手与插件混搭。
 
 ## 升级与恢复
 
 1. 记录当前版本。关闭原生问答/审批窗口，避免丢失草稿；有未提交内容时先处理或保存。
-2. 更新到选定提交或发布版本，运行 `npm ci --ignore-scripts`，再运行 `bash macos/install.sh`。插件管理器安装的 GitHub/压缩包也更新到相同版本。
+2. 当前插件管理器通过移除插件后重新添加安装新版。添加包含自动安装脚本的版本后同步检查助手；CLI 若要求重新授权，按当前精确版本键复核并重试。手动安装时更新到选定提交或发布版本，运行 `npm ci --ignore-scripts` 和 `bash macos/install.sh`，再添加匹配源码目录，使插件与助手版本一致。
 3. 正常重启 Desktop，检查 **Settings → DSH Notify** 中实际加载的插件、助手版本、连接与权限。安全测试通知应实际点击并取得会话选择确认；系统接受不等于已经显示横幅。
 
 安装器先构建和验证新助手，再停止自己的旧进程并检查退出。旧应用和旧受管理的开机启动项保存在 `~/.dsh/dsh-jump/backups/`，设置保留；未知应用或启动项会导致安装拒绝覆盖。`DSH_HOME` 自定义时，状态与备份位于该目录下的 `dsh-jump/`。历史 bundle ID/状态名沿用旧名字，以保留权限和兼容性，不需要手动改名。

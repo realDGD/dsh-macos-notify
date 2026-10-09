@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.5.0 (unreleased)
+## 0.5.0 (prerelease)
+
+### Preview 2
+
+- Add Chinese and English READMEs with user-selected native screenshots and recordings, a Desktop-first installation walkthrough, an agent-assisted fallback and troubleshooting.
+- Keep private work plans, local distributions and signing materials out of Git; retain normalized release metadata and history auditing.
+
+- Compile and install the native helper from an approved plugin package lifecycle script. Reuse matching verified Apps, protect open drafts, back up upgrades, retain settings, serialize application replacement and defer startup to Desktop. Keep manual installation and an explicit native-install opt-out.
+- Build for macOS 13 with SDK-aware animation selection: omit macOS 14 display-link interfaces on SDK 13 and retain the screen-rate timer fallback.
+
+- Follow DSH's English/Chinese language live across settings, menu, notifications, approval/question windows and context helpers. Preserve original content, selections and open drafts; delivered notification actions retain their sending language.
+
+### Preview 1
 
 - Produce a plugin installation package and a separate complete source archive with exact-commit manifest and SHA-256 checksums. Normalize archive ownership/timestamps and audit all reachable Git history plus the actual archive contents before distribution.
 - Document independent source installation, safe upgrades/uninstall and the distinction between automated evidence and pending live menu acceptance. Do not advertise an unpublished stable tag.

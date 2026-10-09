@@ -5,6 +5,7 @@ func logLine(_ message:String) {}
 @main @MainActor struct NativeMenuInteractionTests {
  static func descendants(_ view:NSView)->[NSView]{[view]+view.subviews.flatMap(descendants)}
  static func main() throws {
+  UILocalization.set("zh")
   NSApplication.shared.setActivationPolicy(.prohibited)
   func check(_ value:Bool,_ message:String){if !value{print("FAIL "+message);exit(1)}}
   let directory=FileManager.default.temporaryDirectory.appendingPathComponent("native-menu-actions-"+UUID().uuidString)
@@ -48,7 +49,7 @@ func logLine(_ message:String) {}
   let row=SessionMenuRowView(node:node,depth:0,expanded:false,stale:false,interactions:[first],onDisclosure:{}){item,action in calls.append(item.requestId+":"+action.rawValue)}
   layout(row,width:400)
   for _ in 0..<4 {row.needsLayout=true;row.layoutSubtreeIfNeeded()}
-  let allow=descendants(row).compactMap{$0 as? NSButton}.first{$0.title=="允许本次"}!
+  let allow=descendants(row).compactMap{$0 as? NSButton}.first{$0.title=="允许一次"}!
   let deny=descendants(row).compactMap{$0 as? NSButton}.first{$0.title=="拒绝"}!
   let allowRect=allow.convert(allow.bounds,to:row),denyRect=deny.convert(deny.bounds,to:row)
   check(allowRect.size==NSSize(width:76,height:22) && denyRect.size==NSSize(width:76,height:22),"custom approval frames include native bezel alignment margins: \(allowRect) \(denyRect)")
@@ -59,7 +60,7 @@ func logLine(_ message:String) {}
   allow.performClick(nil);check(calls==["approval-1:allow"],"row Allow targeted another request or navigated")
   let disabled=SessionMenuRowView(node:node,depth:0,expanded:false,stale:true,interactions:[first],onDisclosure:{}){_,_ in calls.append("stale")}
   layout(disabled,width:400)
-  check(descendants(disabled).compactMap{$0 as? NSButton}.filter{["允许本次","拒绝","查看详情","处理请求"].contains($0.title)}.allSatisfy{!$0.isEnabled},"stale row allows mutation")
+  check(descendants(disabled).compactMap{$0 as? NSButton}.filter{["允许一次","拒绝","查看详情","处理请求"].contains($0.title)}.allSatisfy{!$0.isEnabled},"stale row allows mutation")
   let grouped=SessionMenuRowView(node:node,depth:8,expanded:false,stale:false,interactions:[first,second],onDisclosure:{}){item,action in calls.append(item.requestId+":"+action.rawValue)}
   layout(grouped,width:280)
   let picker=descendants(grouped).compactMap{$0 as? NSPopUpButton}.first!
@@ -96,7 +97,7 @@ func logLine(_ message:String) {}
   check(commands().count==1 && interactions.menuInteractions().first{$0.requestId==approval.id}?.canSubmit==false,"duplicate approval command emitted")
   check(interactions.handleMenuInteraction(first,action:.details)==nil,"approval details unavailable during submission")
   let approvalForm=NSApplication.shared.windows.first{$0.title.contains("审批详情")}!
-  let approvalButtons=descendants(approvalForm.contentView!).compactMap{$0 as? NSButton}.filter{["允许本次 (Allow)","拒绝 (Deny)"].contains($0.title)}
+  let approvalButtons=descendants(approvalForm.contentView!).compactMap{$0 as? NSButton}.filter{["允许一次","拒绝"].contains($0.title)}
   check(approvalButtons.count==2 && approvalButtons.allSatisfy{!$0.isEnabled},"details reopened mutable controls while approval is submitting")
   let resultDir=directory.appendingPathComponent("results");try FileManager.default.createDirectory(at:resultDir,withIntermediateDirectories:true)
   let commandId=commands()[0]["commandId"] as! String

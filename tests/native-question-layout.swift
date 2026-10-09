@@ -13,6 +13,7 @@ struct NativeQuestionLayoutTests {
     }
 
     static func main() {
+  UILocalization.set("zh")
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
         let cases: [(String, Int, Bool, NSSize)] = [
@@ -189,10 +190,10 @@ struct NativeQuestionLayoutTests {
             details.setUnavailable(false)
             completion?("跳转超时")
             if closed { print("FAIL jump failure closed the panel"); failures += 1 }
-            let recovered = views.compactMap { $0 as? NSButton }.first { $0.title == "允许本次 (Allow)" }!.isEnabled
+            let recovered = views.compactMap { $0 as? NSButton }.first { $0.title == "允许一次" }!.isEnabled
             if !recovered { print("FAIL reconnect during failed jump kept approval disabled"); failures += 1 }
             back.performClick(nil)
-            let allowButton = views.compactMap { $0 as? NSButton }.first { $0.title == "允许本次 (Allow)" }!
+            let allowButton = views.compactMap { $0 as? NSButton }.first { $0.title == "允许一次" }!
             details.setUnavailable(true)
             var accidentalSubmissions = 0
             details.onSubmit = { _ in accidentalSubmissions += 1 }

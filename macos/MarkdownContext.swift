@@ -37,7 +37,7 @@ final class MarkdownContextView: NSView, WKNavigationDelegate {
         handler.owner = self
         webView.navigationDelegate = self
         webView.underPageBackgroundColor = .windowBackgroundColor
-        webView.setAccessibilityLabel("相关上下文 Markdown")
+        uiAccessibility(webView,L("相关上下文 Markdown"))
         webView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(webView)
         height = heightAnchor.constraint(equalToConstant: 100)
@@ -46,8 +46,10 @@ final class MarkdownContextView: NSView, WKNavigationDelegate {
             webView.trailingAnchor.constraint(equalTo: trailingAnchor),
             webView.topAnchor.constraint(equalTo: topAnchor), webView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+        UILocalization.bind(self,slot:"language") { $0.renderCurrentLanguage() }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+    private var pageReady = false
     private var started = false
     func load() {
         guard !started else { return }; started = true
@@ -62,6 +64,15 @@ final class MarkdownContextView: NSView, WKNavigationDelegate {
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard webView.url?.standardizedFileURL == documentURL else { return }
+        pageReady = true
+        renderCurrentLanguage()
+    }
+    private func renderCurrentLanguage() {
+        if let fallbackText {
+            fallbackText.textStorage?.setAttributedString(highlightedCode(originalContext(), language: "text"))
+            return
+        }
+        guard pageReady else { return }
         do {
             let data = try JSONEncoder().encode(items)
             let json = String(decoding: data, as: UTF8.self)
@@ -69,7 +80,9 @@ final class MarkdownContextView: NSView, WKNavigationDelegate {
                 .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
             // JSON is an expression supplied by native code, not HTML/template
             // interpolation. Quotes, slashes and user text stay data.
-            webView.evaluateJavaScript("window.renderContext(\(json))") { [weak self] _, error in
+            let words = uiEnglish.keys.reduce(into: [String:String]()) { $0[$1] = L($1) }
+            let copy = String(decoding: try JSONEncoder().encode(words), as: UTF8.self)
+            webView.evaluateJavaScript("window.renderContext(\(json), \(copy), \"\(UILocalization.language)\")") { [weak self] _, error in
                 if let error { self?.fallback(error) } else { self?.onRendered?(nil) }
             }
         } catch { fallback(error) }
@@ -77,14 +90,19 @@ final class MarkdownContextView: NSView, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { fallback(error) }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { fallback(error) }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { fallback(nil) }
+    private var fallbackText: NSTextView?
+    private func originalContext() -> String {
+        L("Markdown 显示暂不可用，以下为原文：\n\n") + items.map {
+            ($0.role == "user" ? L("你的请求") : L("助手说明")) + "\n" + $0.text
+                + ($0.truncated == true ? L("\n（较长内容显示前 20,000 字符，请回到 DSH 阅读全文。）") : "")
+        }.joined(separator: "\n\n")
+    }
     private func fallback(_ error: Error?) {
         guard webView.superview != nil else { return }
         webView.removeFromSuperview()
-        let source = "Markdown 显示暂不可用，以下为原文：\n\n" + items.map {
-            ($0.role == "user" ? "你的请求" : "助手说明") + "\n" + $0.text
-                + ($0.truncated == true ? "\n（较长内容显示前 20,000 字符，请回到 DSH 阅读全文。）" : "")
-        }.joined(separator: "\n\n")
-        let scroll = readOnlyText(source, label: "上下文原文", language: "text")
+        let scroll = readOnlyText(originalContext(), label: L("上下文原文"), language: "text")
+        fallbackText = scroll.documentView as? NSTextView
+        if let fallbackText { uiAccessibility(fallbackText, L("上下文原文")) }
         scroll.translatesAutoresizingMaskIntoConstraints = false
         addSubview(scroll); height.constant = 180
         NSLayoutConstraint.activate([

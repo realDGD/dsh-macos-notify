@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createMenuSource } from '../lib/menu-source.js'
+import { buildMenuRows } from '../lib/menu-model.js'
 const event=(seq,type,data,time=seq+100)=>({seq,type,data,time,...(['user/message','assistant/message'].includes(type)?{surfaceOp:'append'}:{})})
 const user=(text,kind='user')=>({role:'user',source:{kind},content:[{type:'text',text}]})
 const assistant=text=>({role:'assistant',source:{kind:'model'},content:[{type:'reasoning',text:'SECRET'}, {type:'text',text}]})
@@ -36,6 +37,7 @@ test('live_titles_pins_todos: official names/pins and parent workspace, numeric 
  const f=fixture([s,child]);f.todos.set(s.id,[{status:'completed'}]);const source=createMenuSource(f.ctx)
  const rows=source.liveFacts();source.dispose()
  assert.equal(rows[0].workspaceTitle,'工作区名称');assert.equal(rows[0].sessionTitle,'真实会话名');assert.equal(rows[0].pinIndex,1)
+ assert.equal(rows[0].sessionUntitled,false,'official title must remain visible')
  assert.equal(rows[0].terminal.time,1234);assert.equal(rows[0].answerText,'正式答案');assert.equal(rows[0].answerTurn,1)
  assert.deepEqual(rows[0].todos,[{status:'completed'}]);assert.equal(rows[1].workspaceTitle,'工作区名称')
 })
@@ -62,12 +64,15 @@ test('latest image-only human input does not resurrect an older text question or
  const s=session('child',[event(0,'turn/start',{turn:1}),event(1,'user/message',user('任务','agent-message')),event(2,'user/message',user('旧问题')),
    event(3,'user/message',{role:'user',source:{kind:'user'},content:[{type:'image',image:'owned-placeholder'}]})],{origin:'subagent'})
  const f=fixture([s]),source=createMenuSource(f.ctx)
- assert.equal(source.liveFacts()[0].userText,'无文字输入');source.dispose()
+ const fact=source.liveFacts()[0]
+ assert.equal(fact.userText,'');assert.equal(fact.userPreviewEmpty,true)
+ assert.equal(buildMenuRows([{...fact,running:true}]).nodes[0].previewKind,'empty');source.dispose()
 })
 test('cold_failures_and_revision_cache: release every lease, bounded workers, unchanged log not refolded',async()=>{
  const f=fixture([],Array.from({length:12},(_,i)=>session('cold-'+i,[event(0,'turn/start',{turn:1}),event(1,'turn/end',{turn:1,reason:{kind:'interrupted'}})])))
  f.errors.add('cold-3');const source=createMenuSource(f.ctx)
  const rows=await source.discover();assert.equal(rows.length,11);assert.equal(rows[0].sessionTitle,'冷会话名称')
+ assert.equal(rows[0].sessionUntitled,false,'official cold title must remain visible')
  const reads=f.metrics.surfaceReads;await source.discover();assert.equal(f.metrics.surfaceReads,reads);assert.equal(reads,0)
  assert.ok(f.metrics.peak<=4);assert.equal(f.metrics.observations,f.metrics.disposals);source.dispose()
 })
@@ -111,4 +116,18 @@ test('unregistered cwd is ungrouped instead of a temporary directory workspace',
  f.services.workspaceRegistry.list=()=>[]
  const source=createMenuSource(f.ctx)
  assert.equal(source.liveFacts()[0].workspaceTitle,'未分组');source.dispose()
+})
+
+test('untitled provenance survives incremental cache revisions and clears for actual title events',()=>{
+ const events=[event(0,'turn/start',{turn:1})],s=session('untitled',events),f=fixture([s])
+ delete f.services.sessionTitle
+ s.snapshotEvents=(from=0)=>events.filter(e=>e.seq>=from)
+ const source=createMenuSource(f.ctx)
+ assert.equal(source.liveFacts()[0].sessionUntitled,true)
+ events.push(event(1,'user/message',user('new input')));s.surface.nodes.push(1)
+ assert.equal(source.liveFacts()[0].sessionUntitled,true,'later input must not turn synthetic name into user title')
+ events.push(event(2,'session/title',{title:'未命名会话'}))
+ const fact=source.liveFacts()[0]
+ assert.equal(fact.sessionUntitled,false,'actual title matching fallback is still user data')
+ assert.equal(fact.sessionTitle,'未命名会话');source.dispose()
 })

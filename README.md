@@ -1,3 +1,8 @@
+---
+description: "为 DSH Desktop 提供原生 macOS 通知、审批、完整问答和菜单栏会话面板，并可点击通知回到对应工作区与会话。"
+kind: "package-reference"
+---
+
 # DSH Notify
 
 **简体中文** · [English](README.en.md)
@@ -8,7 +13,7 @@
 
 这是社区插件。当前稳定版本为 **v0.5.0**；版本和下载见 [Releases](https://github.com/realDGD/dsh-macos-notify/releases/tag/v0.5.0)。
 
-## 能做什么
+## Summary
 
 | 功能 | 使用方式 |
 | --- | --- |

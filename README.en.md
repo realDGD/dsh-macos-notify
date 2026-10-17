@@ -1,3 +1,8 @@
+---
+description: "Native macOS notifications, approvals, complete question forms and a menu-bar session panel for DSH Desktop, with notification clicks returning to the matching workspace and session."
+kind: "package-reference"
+---
+
 # DSH Notify
 
 [简体中文](README.md) · **English**
@@ -8,7 +13,7 @@ The project combines a DSH plugin with the background **DSH Notify.app** helper.
 
 This is a community plugin. The current stable version is **v0.5.0**. See [Releases](https://github.com/realDGD/dsh-macos-notify/releases/tag/v0.5.0) for versions and downloads.
 
-## Features
+## Summary
 
 | Feature | What it does |
 | --- | --- |

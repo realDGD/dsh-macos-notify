@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Helper lifecycle
+
+- Launch the menu-bar helper immediately when a fast Desktop restart leaves the previous helper's `helper-status.json` looking fresh although that process has already exited: the activation check now also probes the recorded pid, and recovery probes run at 1s, 2.5s and 5s before the 10s watchdog. Reopening DSH no longer leaves the menu bar and notification helper absent for up to ten seconds; the live Host logs showed the helper arriving 12s after launch on a quick restart and 2s when the previous helper had already exited.
+
 ### Compatibility
 
 - Widen the `@deepseek-ai/dsh-session` and `@deepseek-ai/dsh-session-format-catalog` peers from the exact `0.2.0-rc.2` pin to `>=0.2.0-rc.2 <0.3.0-0`, so the DSH 0.2.1-rc.1 plugin compatibility gate keeps loading the bundle (the old pin made the Host skip it entirely) while still blocking `0.3.0` prereleases. Verified with the plugin's Node regressions against the installed 0.2.1-rc.1 runtime packages (113/113) and by the live Desktop resuming the session-menu snapshot.

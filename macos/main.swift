@@ -62,10 +62,15 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
     private let jumpWaiter = DesktopJumpWaiter(directory: stateDir)
     private var sessionMenu: SessionMenuController?
     private var desktopLifecycle: DesktopLifecycle?
+    /// True when this process was started without Desktop — usually by macOS
+    /// delivering a notification click when DSH was closed.
+    private var awaitingNotificationLaunch = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        desktopLifecycle = DesktopLifecycle(onStopped: { NSApp.terminate(nil) })
-        guard desktopLifecycle?.start() == true else { return }
+        // A click on a delivered notification can be the only reason this helper
+        // was started: with Desktop closed macOS still launches us and delivers
+        // the response right after launch. Wire the notification center before
+        // the Desktop lifecycle gate, or an early return drops the click.
         // Accessory apps have no default Edit menu. Install standard responder
         // commands so multiline fields support Cmd+C/V/A and undo normally.
         UILocalization.poll(directory: stateDir)
@@ -81,6 +86,26 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
                 completion(L("无法打开 DSH Desktop，窗口已保留。"))
                 return
             }
+        }
+        desktopLifecycle = DesktopLifecycle(onStopped: { NSApp.terminate(nil) })
+        let desktopRunning = CommandLine.arguments.contains("--simulate-no-desktop")
+            ? false
+            : desktopLifecycle?.start() == true
+        guard desktopRunning else {
+            // Started only to deliver a click (or by mistake). Stay alive just
+            // long enough for the launch response, hand it to Desktop, then quit:
+            // the Desktop we start boots its own helper once its profile is up.
+            awaitingNotificationLaunch = true
+            logLine("started without desktop; awaiting notification response")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { NSApp.terminate(nil) }
+            // Presentation hook for isolated validation of the hand-off path.
+            if let index = CommandLine.arguments.firstIndex(of: "--simulate-click"),
+               CommandLine.arguments.count > index + 1,
+               let url = URL(string: CommandLine.arguments[index + 1]) {
+                logLine("simulated click \(url.absoluteString)")
+                handleClick(to: url, testId: nil)
+            }
+            return
         }
         sessionMenu = SessionMenuController(directory: stateDir, openSession: { [weak self] id, completion in
             var components = URLComponents(string: "http://127.0.0.1:3080/")!
@@ -272,6 +297,12 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
 
         if response.actionIdentifier == UNNotificationDismissActionIdentifier { return }
         if let id = info["interactionId"] as? String {
+            // An interaction window needs the Desktop Host's live state; a click
+            // that started this helper cannot show anything useful.
+            guard !awaitingNotificationLaunch else {
+                logLine("interaction-click-without-desktop id=\(id)")
+                return
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 NotificationInteractions.shared.handle(id: id, action: response.actionIdentifier)
             }
@@ -289,8 +320,19 @@ final class Notifier: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
         logLine("pre-open state: helperActive=\(NSApp.isActive) frontmost=\(front)")
 
         // 让出一个 run loop 周期再动手，别和通知系统的收尾抢主线程。
+        handleClick(to: url, testId: info["testId"] as? String)
+    }
+
+    /// Shared click path: defer past the notification panel teardown, then hand
+    /// the session to Desktop. When this launch existed only to deliver the
+    /// click, quit once the hand-off is on its way so the Desktop we just
+    /// started can launch its own helper when its profile comes up.
+    private func handleClick(to url: URL, testId: String?) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            self?.jump(to: url, testId: info["testId"] as? String)
+            guard let self = self else { return }
+            self.jump(to: url, testId: testId)
+            guard self.awaitingNotificationLaunch else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { NSApp.terminate(nil) }
         }
     }
 

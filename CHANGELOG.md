@@ -5,6 +5,7 @@
 ### Helper lifecycle
 
 - Launch the menu-bar helper immediately when a fast Desktop restart leaves the previous helper's `helper-status.json` looking fresh although that process has already exited: the activation check now also probes the recorded pid, and recovery probes run at 1s, 2.5s and 5s before the 10s watchdog. Reopening DSH no longer leaves the menu bar and notification helper absent for up to ten seconds; the live Host logs showed the helper arriving 12s after launch on a quick restart and 2s when the previous helper had already exited.
+- Hand a notification click back to Desktop even when Desktop is closed. macOS may launch this helper only to deliver the click; the helper previously returned from the Desktop lifecycle gate before wiring the notification delegate, so that launch response was dropped. The delegate and interaction wiring now come first, a click without Desktop writes the pending session request, opens Desktop and exits once the hand-off is on its way (Desktop then boots its own helper), and interaction clicks that arrive without Desktop are logged instead of opening a stale window. Validated with an isolated `--simulate-no-desktop --simulate-click` run: request written, Desktop opened, helper exited in ~2.5s.
 
 ### Compatibility
 

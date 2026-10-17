@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Compatibility
+
+- Widen the `@deepseek-ai/dsh-session` and `@deepseek-ai/dsh-session-format-catalog` peers from the exact `0.2.0-rc.2` pin to `>=0.2.0-rc.2 <0.3.0-0`, so the DSH 0.2.1-rc.1 plugin compatibility gate keeps loading the bundle (the old pin made the Host skip it entirely) while still blocking `0.3.0` prereleases. Verified with the plugin's Node regressions against the installed 0.2.1-rc.1 runtime packages (113/113) and by the live Desktop resuming the session-menu snapshot.
+
 ### Distribution
 
 - Accept GitHub's own `noreply@github.com` committer identity in the history audit. Web-interface edits, suggestion commits and pull-request merge refs no longer fail the privacy gate, while personal commit addresses are still rejected.
@@ -87,4 +91,4 @@
 - Preserve interactive Allow/Deny, full approval context/commands, multi-question options plus individual text input, Markdown/highlighting, verified Desktop navigation and first-wins handling.
 - Ship helper source, Command Line Tools build/install/upgrade/uninstall scripts, backup protection, MIT license, package/privacy checks and Node/native CI.
 
-Current scope: DSH Desktop 0.2.0-rc.2, one active local Host/state namespace. Native source builds target macOS 13+ on the build machine's architecture; older OS and Intel device acceptance need separate validation. No downloaded prebuilt helper or official icon asset is distributed.
+Current scope: DSH Desktop 0.2.1-rc.1, one active local Host/state namespace. Native source builds target macOS 13+ on the build machine's architecture; older OS and Intel device acceptance need separate validation. No downloaded prebuilt helper or official icon asset is distributed.

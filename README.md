@@ -77,7 +77,7 @@ DSH 决定请求是否有效。先被接受的回答生效；已回答、取消�
 
 > **v0.5.0** 支持自动安装助手。旧版 `v0.5.0-preview.1` 仍需使用下方的「手动安装」。
 
-需要 **macOS 13 或更新版本**和官方 **DSH Desktop**，当前验证版本为 `0.2.0-rc.2`。通过 Desktop 安装会使用其内置 Node.js/pnpm；只有手动构建或开发才需要另行准备 Node.js 22+。旧系统与 Intel 的实机验证范围见 [兼容性说明](docs/compatibility.md)。
+需要 **macOS 13 或更新版本**和官方 **DSH Desktop**，当前验证版本为 `0.2.1-rc.1`。通过 Desktop 安装会使用其内置 Node.js/pnpm；只有手动构建或开发才需要另行准备 Node.js 22+。旧系统与 Intel 的实机验证范围见 [兼容性说明](docs/compatibility.md)。
 
 ### 推荐：通过 DSH Desktop 安装
 

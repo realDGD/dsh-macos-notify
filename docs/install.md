@@ -4,7 +4,7 @@
 
 ## 环境与版本
 
-- 官方 DeepSeek Harness Desktop，当前验证版本 `0.2.0-rc.2`。
+- 官方 DeepSeek Harness Desktop，当前验证版本 `0.2.1-rc.1`。
 - 最低运行和编译目标为 macOS 13；SDK 13 使用计时器动画，SDK 14+ 构建保留新系统屏幕刷新接口。真实本机验证是 Apple Silicon，旧系统与 Intel 仍需设备验收。
 - Desktop 插件管理器及 Desktop 自带 CLI 使用其内置 Node.js/pnpm；手动源码安装或开发需要独立 Node.js 22+。构建助手需要 Apple Command Line Tools，无须完整 Xcode 或付费证书。
 - 本仓库提供源码，不提供已公证的通用 `.app`。本机构建使用当前机器架构。

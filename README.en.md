@@ -77,7 +77,7 @@ See [image sources and scope](docs/images/README.md). Demo requests do not execu
 
 > **v0.5.0** supports automatic helper installation. The older `v0.5.0-preview.1` still needs the manual steps below.
 
-You need **macOS 13 or later** and official **DSH Desktop**. The tested DSH version is `0.2.0-rc.2`. Desktop installation uses its bundled Node.js/pnpm; a separate Node.js 22+ installation is needed only for manual builds or development. See [compatibility](docs/compatibility.md) for older macOS and Intel verification limits.
+You need **macOS 13 or later** and official **DSH Desktop**. The tested DSH version is `0.2.1-rc.1`. Desktop installation uses its bundled Node.js/pnpm; a separate Node.js 22+ installation is needed only for manual builds or development. See [compatibility](docs/compatibility.md) for older macOS and Intel verification limits.
 
 ### Recommended: install from DSH Desktop
 

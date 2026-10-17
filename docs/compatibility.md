@@ -2,7 +2,7 @@
 
 ## Supported scope
 
-- Target: official DSH Desktop 0.2.0-rc.2; community plugin and local macOS helper.
+- Target: official DSH Desktop 0.2.1-rc.1; community plugin and local macOS helper.
 - Node: 22+. DSH itself supplies its Host/client services.
 - Native deployment target: macOS 13+. Build is for the local architecture; this is not a certified universal binary.
 - Host native transport is private same-user files; navigation/settings use existing authenticated Connection Fetch routes.
@@ -19,6 +19,8 @@
 | Safe live notification click | Real callback and exact Desktop session ack on the test machine | Execution of real commands or new model messages |
 
 Prior implementation was verified on official Desktop 0.2.0-rc.2, macOS 27.0.1 / Apple Silicon. For v0.2.0, the official package installer loaded the source tarball in a fresh isolated profile. The production Desktop loaded the renamed plugin, rendered the settings section, persisted a toggle through authenticated RPC, and reported matching plugin/helper versions plus authorized notification permission. The helper consumed and posted the safe test queue entry; the corresponding notification-click acceptance check is recorded separately. No blanket support is claimed for older Desktop versions.
+
+For Desktop 0.2.1-rc.1, whose plugin compatibility gate rejects exact-version pins that no longer match the runtime, the session/format-catalog peers were widened to `>=0.2.0-rc.2 <0.3.0-0`. Verified here: the plugin's Node regressions pass against the installed 0.2.1-rc.1 session, session-query and format-catalog packages (113/113); `foldSurface` and `deriveEventMessage` are byte-identical to 0.2.0-rc.2; the format catalog is unchanged apart from additions and `SESSION_FORMAT_VERSION` remains 4; and the live Desktop resumed writing the session-menu snapshot after the range change. Real notification delivery, menu interaction and approval/question windows on 0.2.1-rc.1 remain separate live acceptance steps, as they were for 0.2.0-rc.2.
 
 ## Operational limits
 
@@ -53,7 +55,7 @@ The current helper coordinates one local active DSH profile/state namespace. Mul
 - Cold child navigation uses the official SubagentAddress derived from a fresh private Host snapshot. Unknown/stale lineage produces a visible failure instead of guessing a workspace. No browser fallback is used by menu clicks.
 - These checks establish source/component contracts. Current Desktop reload, visible menu interaction and real notification/session-selection acknowledgement remain separate live acceptance steps. macOS 13/Intel device acceptance is still unverified.
 
-The menu uses the official 0.2.0-rc.2 session and format-catalog peer packages to fold the same retained observation; `sessionPersistence.stat` supplies lightweight revision tokens. Cache identity includes the persistence instance and session revision. Unchanged histories do not exceed the SDK’s prepared-cache capacity with repeated full reads, and no second uncancellable surface read is held across disposal. Development/manual source installs use `npm ci --ignore-scripts`; DSH package installs resolve the declared peer packages and run approved lifecycle scripts.
+The menu uses the official 0.2.1-rc.1 session and format-catalog peer packages to fold the same retained observation; `sessionPersistence.stat` supplies lightweight revision tokens. Cache identity includes the persistence instance and session revision. Unchanged histories do not exceed the SDK’s prepared-cache capacity with repeated full reads, and no second uncancellable surface read is held across disposal. Development/manual source installs use `npm ci --ignore-scripts`; DSH package installs resolve the declared peer packages and run approved lifecycle scripts.
 
 ## v0.5.0 stable release
 

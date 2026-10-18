@@ -88,7 +88,10 @@ import CryptoKit
    let arrow=branch.subviews.compactMap{$0 as? NSButton}.first!
    let dot=branch.subviews.first{$0.layer?.backgroundColor != nil}!
    check(abs(dot.frame.midY-branch.bounds.midY)<0.5 && dot.frame.maxX<branch.title.frame.minX,"status dot is not centered in its left column")
-   check(arrow.frame.minX>=branch.title.frame.maxX && abs(arrow.frame.midY-branch.title.frame.midY)<0.5,"disclosure is not at the title line's right end: width=\(width), depth=\(depth), progress=\(progress), scale=\(branch.window?.backingScaleFactor ?? 0), row=\(branch.bounds), title=\(branch.title.frame), arrow=\(arrow.frame), arrowAlignment=\(arrow.alignmentRectInsets)")
+   let scale=branch.window?.backingScaleFactor ?? 1
+   // A 17-point title and 26-point button can differ by half a backing pixel after AppKit aligns their frames.
+   let centerTolerance=0.5/scale+0.001
+   check(arrow.frame.minX>=branch.title.frame.maxX && abs(arrow.frame.midY-branch.title.frame.midY)<=centerTolerance,"disclosure is not at the title line's right end: width=\(width), depth=\(depth), progress=\(progress), scale=\(scale), row=\(branch.bounds), title=\(branch.title.frame), arrow=\(arrow.frame), arrowAlignment=\(arrow.alignmentRectInsets)")
    check(branch.bounds.contains(arrow.frame) && arrow.frame.maxX<=branch.preview.frame.maxX+0.5,"disclosure hit area is clipped")
    check(branch.hitTest(NSPoint(x:arrow.frame.midX,y:arrow.frame.midY))===arrow,"title-line disclosure cannot receive clicks")
    if progress {check(arrow.frame.maxX<branch.progress.frame.minX,"disclosure overlaps task progress")}

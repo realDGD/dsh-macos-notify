@@ -194,5 +194,15 @@ let uiEnglish: [String:String] = [
  "会话 ":"Session ",
  "会话 ID：":"Session ID: ",
  "请求原因\n":"Reason\n",
- "已回答 {0} / {1} · 每题至少选择一个选项或填写自定义答案":"Answered {0} / {1} · Select an option or enter a custom answer for each question"
+ "已回答 {0} / {1} · 每题至少选择一个选项或填写自定义答案":"Answered {0} / {1} · Select an option or enter a custom answer for each question",
+ "打开 DSH Notify 设置":"Open DSH Notify Settings",
+ "隐藏菜单栏":"Hide Menu Bar",
+ "退出 DSH":"Quit DSH",
+ "退出 DSH？":"Quit DSH?",
+ "取消":"Cancel",
+ "仍有任务正在运行或等待处理，退出 DSH 可能中断这些任务。是否继续？":"Tasks are still running or waiting for input. Quitting DSH may interrupt them. Continue?",
+ "暂时无法确认任务状态，退出 DSH 可能中断任务。是否继续？":"The task status is unavailable. Quitting DSH may interrupt tasks. Continue?",
+ "无法退出 DSH，请在 DSH 中重试。":"Unable to quit DSH. Try again in DSH.",
+ "无法打开 DSH Notify 设置，请在 DSH 中重试。":"Unable to open DSH Notify Settings. Try again in DSH.",
+ "未确认已打开 DSH Notify 设置，请在 DSH 中重试。":"Couldn’t confirm that DSH Notify Settings opened. Try again in DSH."
 ]

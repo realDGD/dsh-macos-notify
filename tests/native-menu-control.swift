@@ -29,6 +29,28 @@ import Foundation
   control.setEnabled(true,at:3000){if $0==nil{success+=1}else{failures+=1}}
   control.poll(at:18001);precondition(success==1 && failures==1)
   precondition(!manager.fileExists(atPath:directory.appendingPathComponent("settings.json").path))
+  var opened=0,settingsResults:[String?]=[]
+  control.openSettings(openDesktop:{opened+=1;return true},at:20000){settingsResults.append($0)}
+  let requestPath=directory.appendingPathComponent("open-session.json"),receiptPath=directory.appendingPathComponent("jump-result.json")
+  let request=try JSONSerialization.jsonObject(with:Data(contentsOf:requestPath)) as! [String:Any]
+  precondition(opened==1 && request["kind"] as? String=="open-notify-settings" && request["sessionId"]==nil)
+  let requestMode=(try manager.attributesOfItem(atPath:requestPath.path)[.posixPermissions] as? NSNumber)?.intValue
+  precondition(requestMode==0o600)
+  var receipt=request;receipt["confirmedAt"]=21000;receipt["kind"]="other"
+  try JSONSerialization.data(withJSONObject:receipt).write(to:receiptPath);control.poll(at:21000)
+  precondition(settingsResults.isEmpty)
+  receipt["kind"]="open-notify-settings";receipt["createdAt"]=19999
+  try JSONSerialization.data(withJSONObject:receipt).write(to:receiptPath);control.poll(at:21000)
+  precondition(settingsResults.isEmpty)
+  receipt["createdAt"]=20000
+  try JSONSerialization.data(withJSONObject:receipt).write(to:receiptPath);control.poll(at:21000)
+  precondition(settingsResults.count==1 && settingsResults[0]==nil)
+  control.openSettings(openDesktop:{false},at:22000){settingsResults.append($0)}
+  precondition(settingsResults.count==2 && settingsResults[1] != nil)
+  precondition(!manager.fileExists(atPath:requestPath.path))
+  control.openSettings(openDesktop:{true},at:23000){settingsResults.append($0)}
+  control.poll(at:38001)
+  precondition(settingsResults.count==3 && settingsResults[2] != nil && !manager.fileExists(atPath:requestPath.path))
   print("PASS native typed menu command identity, private modes, stale/foreign/incorrect result rejection and timeout")
  }
 }

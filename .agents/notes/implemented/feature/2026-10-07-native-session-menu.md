@@ -34,6 +34,10 @@ The bounds are part of the contract, not tuning constants: at most 4 MiB for the
 
 **Keep the scrollable panel the design first described.** The approved design allowed a scrollable content area; the shipped panel uses fixed viewports with explicit expand/collapse arrows and up/down controls, no wheel scrolling and no scrollbars, and keeps expanded rows reachable (`CHANGELOG.md`, 0.5.0). Long trees are still reachable, so the earlier scrolling model lost to a predictable set of rows on screen.
 
+The root-quota and single-row pinning rules are refined in [the subtree-visibility decision](../bug-fix/2026-10-18-menu-subtree-visibility.md).
+
+Application actions, settings navigation and popover dismissal are refined in [the status-action decision](2026-10-18-status-menu-actions.md).
+
 **Compute a session's progress from descendant todos or from elapsed time.** Rejected: the ring is completed/total of that node's current todo list only. A parent's ring never sums its children's plans, and the ring is not an estimate of how far the model run has progressed.
 
 ## Consequences

@@ -170,10 +170,13 @@ The helper starts and stops with Desktop; it is not a login item. See the [insta
 ## Everyday use
 
 - **Menu bar:** Click the fish icon. Activity prioritizes pinned sessions, requests needing input and abnormal stops, followed by running sessions. The recent section shows up to five top-level sessions, excluding sessions already in activity and all subagents.
-- **Expansion and progress:** Each section shows an expansion arrow only when needed, without wheel scrolling or scrollbars. Task counts appear inside the progress ring; a completed plan becomes a green check. Sessions without a plan have no ring.
+- **Expansion and progress:** Default section quotas count top-level sessions only. Expanding a parent initially shows two subagents; select “N more subagents” to reveal the rest. The section grows with its expanded content; when the menu height limit is reached, use the up/down arrows to reach the remaining rows. A single-row viewport does not pin the parent over its subagents. There is no wheel scrolling or scrollbar. Task counts appear inside the progress ring; a completed plan becomes a green check. Sessions without a plan have no ring.
+- **Keyboard expansion:** Up/Down selects the subagent “more” row. Enter or Space expands/collapses the extra subagents, and Right also expands them. Expansion focuses the first newly revealed subagent; Left on the “more” row returns to its parent.
 - **Quick actions:** Approvals have vertically arranged Allow/Reject buttons; questions open the complete form. An **Actions** menu separates multiple requests in the same session.
 - **Notification settings:** Configure notification types, system sound, separate subagent results, waiting for subagents before reporting completion, and silencing reminders while viewing the session.
-- **Menu bar toggle:** Disable it from DSH Notify settings or the panel's gear. Notifications and native approval/question windows remain available. Re-enable it in DSH Settings.
+- **Menu bar actions:** Right-click the fish icon to open DSH, open DSH Notify Settings, hide the menu bar icon or quit DSH. The panel's gear opens DSH Notify Settings directly. Clicking outside dismisses the panel while independent approval/question windows remain open.
+- **Quit confirmation:** Quitting DSH requires confirmation while tasks are running, awaiting approval or awaiting answers. Stale, unavailable or incomplete task status also requires confirmation. The helper requests a normal application quit.
+- **Menu bar toggle:** Disable it in DSH Notify Settings or choose **Hide Menu Bar** from the icon's context menu. Notifications and native approval/question windows remain available. Re-enable it in DSH Notify Settings.
 - **Language:** Change DSH's language setting. Open windows update their UI wording while retaining choices and drafts. Delivered notifications keep the language used when sent.
 
 Related context is rendered locally with Markdown and KaTeX, including headings, lists, quotes, tables, formulas and code. Remote images are not loaded automatically, and raw HTML is inert. Very long context states its truncation limit; open DSH to read the full text.

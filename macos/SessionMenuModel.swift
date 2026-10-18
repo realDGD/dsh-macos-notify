@@ -62,6 +62,7 @@ final class SessionMenuStore {
  }
  func unavailable(){invalid=true}
  func isStale(at now:Double)->Bool {guard let value=snapshot else{return true};return now-value.updatedAt>6000}
+ func isReady(at now:Double)->Bool {!invalid && !isStale(at:now) && snapshot?.availability=="ready"}
  func status(at now:Double)->String {
   guard let value=snapshot else{return L("等待 DSH 连接")}
   if isStale(at:now){return L("DSH 未连接，内容可能过期")}

@@ -3,9 +3,35 @@ final class SessionMenuControl {
  private struct Command: Codable {let version:Int;let commandId:String;let createdAt:Double;let kind:String;let enabled:Bool}
  private struct Result: Codable {let commandId:String;let kind:String;let enabled:Bool;let status:String;let completedAt:Double}
  private struct Pending {let createdAt:Double;let enabled:Bool;let completion:(String?)->Void}
+ private struct SettingsRequest:Codable {let requestId:String;let kind:String;let createdAt:Double}
+ private struct SettingsReceipt:Decodable {let requestId:String;let kind:String;let createdAt:Double;let confirmedAt:Double}
+ private struct SettingsPending {let request:SettingsRequest;let completion:(String?)->Void}
  private let directory:String
  private var pending:[String:Pending]=[:]
+ private var settingsPending:SettingsPending?
  init(directory:String){self.directory=directory}
+ func openSettings(openDesktop:()->Bool,at now:Double=Date().timeIntervalSince1970*1000,completion:@escaping(String?)->Void) {
+  guard settingsPending==nil else{return}
+  let request=SettingsRequest(requestId:UUID().uuidString,kind:"open-notify-settings",createdAt:now)
+  let manager=FileManager.default,path=(directory as NSString).appendingPathComponent("open-session.json")
+  do {
+   try manager.createDirectory(atPath:directory,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
+   try manager.setAttributes([.posixPermissions:0o700],ofItemAtPath:directory)
+   try JSONEncoder().encode(request).write(to:URL(fileURLWithPath:path),options:.atomic)
+   try manager.setAttributes([.posixPermissions:0o600],ofItemAtPath:path)
+   settingsPending=SettingsPending(request:request,completion:completion)
+   if !openDesktop(){finishSettings(L("无法打开 DSH Desktop。"),removeRequest:true)}
+  } catch {completion(L("无法打开 DSH Notify 设置，请在 DSH 中重试。"))}
+ }
+ private func finishSettings(_ error:String?,removeRequest:Bool=false) {
+  guard let item=settingsPending else{return};settingsPending=nil
+  if removeRequest {
+   let path=(directory as NSString).appendingPathComponent("open-session.json")
+   if let data=try? Data(contentsOf:URL(fileURLWithPath:path)),let request=try? JSONDecoder().decode(SettingsRequest.self,from:data),
+      request.requestId==item.request.requestId,request.kind==item.request.kind,request.createdAt==item.request.createdAt {try? FileManager.default.removeItem(atPath:path)}
+  }
+  item.completion(error)
+ }
  func setEnabled(_ enabled:Bool,at now:Double=Date().timeIntervalSince1970*1000,completion:@escaping(String?)->Void) {
   let id=UUID().uuidString,manager=FileManager.default,folder=(directory as NSString).appendingPathComponent("menu-commands")
   do {
@@ -33,6 +59,15 @@ final class SessionMenuControl {
     pending.removeValue(forKey:id)?.completion(L("未确认设置已保存，请检查 DSH 连接后重试。"))
     try? FileManager.default.removeItem(atPath:(directory as NSString).appendingPathComponent("menu-commands/"+id+".json"))
    }
+  }
+  if let item=settingsPending {
+   let path=(directory as NSString).appendingPathComponent("jump-result.json")
+   if let size=(try? FileManager.default.attributesOfItem(atPath:path)[.size]) as? Int,size<=4096,
+      let data=try? Data(contentsOf:URL(fileURLWithPath:path)),let result=try? JSONDecoder().decode(SettingsReceipt.self,from:data),
+      result.requestId==item.request.requestId,result.kind==item.request.kind,result.createdAt==item.request.createdAt,
+      result.confirmedAt.isFinite,result.confirmedAt>=item.request.createdAt,result.confirmedAt<=now+10000 {
+    finishSettings(nil)
+   } else if now-item.request.createdAt>15000 {finishSettings(L("未确认已打开 DSH Notify 设置，请在 DSH 中重试。"),removeRequest:true)}
   }
  }
 }

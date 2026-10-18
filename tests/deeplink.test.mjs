@@ -65,6 +65,36 @@ test('Desktop 选中失败时不 ack，也不抢在应用初始导航之前跳�
   assert.deepEqual(calls, ['openSession:s-target'])
   assert.deepEqual(ack, [])
 })
+test('Desktop settings jump opens the Notify section, confirms its state and retries only its receipt', async () => {
+  let pending = { requestId: 'settings-1', kind: 'open-notify-settings', createdAt: Date.now() }
+  const ack = [], intervals = []
+  let state = { open: false, activeId: undefined }, opens = 0, available = false, accept = false
+  const shell = { store: { getSnapshot: () => state }, actions: { openSection(id) { opens++; state = { open: true, activeId: id } } } }
+  const rpc = { call: async (_channel, endpoint, payload) => {
+    if (endpoint.endsWith('/pending')) return { ok: true, value: pending }
+    ack.push(payload)
+    if (accept) pending = null
+    return { ok: accept, value: { ok: accept } }
+  } }
+  const f = makeCtx({ rpc })
+  const get = f.ctx.get
+  f.ctx.get = name => name === 'slots' ? { entries: slot => !available ? [] : slot === 'settings.section'
+    ? [{ options: { id: 'dsh-macos-notify' } }]
+    : slot === 'sidebar.settings' ? [{ options: {}, store: { create: () => shell } }] : [] } : get(name)
+  loadPlugin({ protocol: 'dsh-app:', intervals }).exported.apply(f.ctx)
+  await sleep(20)
+  assert.equal(opens, 0); assert.deepEqual(ack, [])
+  available = true
+  for (const poll of intervals) poll()
+  await sleep(20)
+  assert.deepEqual(state, { open: true, activeId: 'dsh-macos-notify' })
+  assert.equal(opens, 1); assert.equal(ack[0]?.kind, 'open-notify-settings')
+  state = { open: false, activeId: undefined }; accept = true
+  for (const poll of intervals) poll()
+  await sleep(20)
+  assert.equal(opens, 1, 'an unconfirmed receipt repeatedly reopens settings after the user closed them')
+  assert.deepEqual(f.calls, [], 'settings navigation changes the current session')
+})
 
 test('child_workspace_route: nested catalog child connects ancestor workspace before selecting the child', async () => {
   const ack=[]

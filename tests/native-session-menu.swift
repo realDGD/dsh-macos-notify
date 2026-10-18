@@ -37,6 +37,9 @@ import CryptoKit
   check(content.visibleRows.compactMap(\.sessionId)==["parent"],"children not initially collapsed")
   content.toggle("parent");content.view.layoutSubtreeIfNeeded()
   check(opened.isEmpty,"disclosure opened Desktop")
+  check(content.visibleRows.compactMap(\.sessionId)==["parent","child-0","child-1"],"initial subagent expansion did not cap at two children")
+  check(content.visibleRows.last?.moreParentId=="parent" && content.visibleRows.last?.moreExpanded==false,"subagent more control row missing")
+  content.toggleChildren("parent");content.view.layoutSubtreeIfNeeded()
   check(content.visibleRows.compactMap(\.sessionId).count==401,"expanded children lost")
   check(content.view.frame.width<=420 && content.view.frame.height<=600,"popover bounds")
   check(!content.scrollView.hasVerticalScroller,"long tree still shows a scrollbar instead of expansion arrows")
@@ -68,6 +71,44 @@ import CryptoKit
   let depthRow=narrow.table.view(atColumn:0,row:narrow.visibleRows.count-1,makeIfNecessary:true) as! SessionMenuRowView
   depthRow.layoutSubtreeIfNeeded();check(depthRow.title.frame.minX<230,"deep indentation hides title")
   check(depthRow.title.frame.width>20 && depthRow.preview.frame.maxX<=depthRow.bounds.width,"narrow deep row content clipped")
+  var rowWindows:[NSWindow]=[],disclosureClicks=0
+  func layoutRow(_ children:[String],depth:Int,width:CGFloat,progress:Bool,expanded:Bool=false)->SessionMenuRowView {
+   let model=try! JSONDecoder().decode(MenuNode.self,from:JSONSerialization.data(withJSONObject:node("layout",nil,children,"running",progress ? ["completed":1,"total":8]:nil)))
+   let row=SessionMenuRowView(node:model,depth:depth,expanded:expanded,stale:false,onDisclosure:{disclosureClicks+=1})
+   let window=NSWindow(contentRect:NSRect(x:0,y:0,width:width,height:64),styleMask:[],backing:.buffered,defer:false)
+   window.contentView=row;row.frame=NSRect(x:0,y:0,width:width,height:64)
+   row.layoutSubtreeIfNeeded();rowWindows.append(window);return row
+  }
+  for width:CGFloat in [280,400] {for depth in [0,2,8] {for progress in [false,true] {
+   let branch=layoutRow(["child"],depth:depth,width:width,progress:progress)
+   let leaf=layoutRow([],depth:depth,width:width,progress:progress)
+   for (a,b) in zip([branch.title,branch.preview,branch.status],[leaf.title,leaf.preview,leaf.status]) {
+    check(abs(a.frame.minX-b.frame.minX)<0.5,"child disclosure shifts the text column at depth \(depth)")
+   }
+   let arrow=branch.subviews.compactMap{$0 as? NSButton}.first!
+   let dot=branch.subviews.first{$0.layer?.backgroundColor != nil}!
+   check(abs(dot.frame.midY-branch.bounds.midY)<0.5 && dot.frame.maxX<branch.title.frame.minX,"status dot is not centered in its left column")
+   check(arrow.frame.minX>=branch.title.frame.maxX && abs(arrow.frame.midY-branch.title.frame.midY)<0.5,"disclosure is not at the title line's right end")
+   check(branch.bounds.contains(arrow.frame) && arrow.frame.maxX<=branch.preview.frame.maxX+0.5,"disclosure hit area is clipped")
+   check(branch.hitTest(NSPoint(x:arrow.frame.midX,y:arrow.frame.midY))===arrow,"title-line disclosure cannot receive clicks")
+   if progress {check(arrow.frame.maxX<branch.progress.frame.minX,"disclosure overlaps task progress")}
+   check(leaf.subviews.compactMap{$0 as? NSButton}.first!.isHidden,"leaf retains an expandable disclosure")
+  }}}
+  let hoverRow=layoutRow(["child"],depth:0,width:400,progress:true)
+  let hoverArrow=hoverRow.subviews.compactMap{$0 as? NSButton}.first!
+  func buttonImage()->Data {
+   let bitmap=hoverArrow.bitmapImageRepForCachingDisplay(in:hoverArrow.bounds)!
+   hoverArrow.cacheDisplay(in:hoverArrow.bounds,to:bitmap)
+   return bitmap.representation(using:.png,properties:[:])!
+  }
+  let idleImage=buttonImage()
+  let enter=NSEvent.enterExitEvent(with:.mouseEntered,location:.zero,modifierFlags:[],timestamp:0,windowNumber:hoverRow.window!.windowNumber,context:nil,eventNumber:0,trackingNumber:0,userData:nil)!
+  hoverArrow.mouseEntered(with:enter)
+  check(buttonImage() != idleImage,"hover does not reveal the disclosure button background")
+  let leave=NSEvent.enterExitEvent(with:.mouseExited,location:.zero,modifierFlags:[],timestamp:0,windowNumber:hoverRow.window!.windowNumber,context:nil,eventNumber:0,trackingNumber:0,userData:nil)!
+  hoverArrow.mouseExited(with:leave)
+  check(buttonImage()==idleImage,"disclosure hover background remains after pointer exit")
+  hoverArrow.performClick(nil);check(disclosureClicks==1,"title-line disclosure lost its toggle action")
   let directory=FileManager.default.temporaryDirectory.appendingPathComponent("native-menu-"+UUID().uuidString)
   try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
   defer{try? FileManager.default.removeItem(at:directory)}
@@ -100,15 +141,17 @@ import CryptoKit
   check(split.ingest(data(nodes+recentIds.map{node($0,nil,[],"completed")},history:recentIds),at:1000),"split fixture decode")
   content.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil)
   if !content.visibleRows.contains(where:{$0.sessionId=="child-0"}){content.toggle("parent")}
+  if content.visibleRows.compactMap(\.sessionId).count<401{content.toggleChildren("parent")}
   content.view.layoutSubtreeIfNeeded()
   let historyFrame=content.historyList.convert(content.historyList.bounds,to:content.view)
   check(historyFrame.minY>=0 && historyFrame.maxY<=content.view.bounds.maxY,"recent section requires scrolling the activity list")
   check(content.historyList.rows.compactMap(\.sessionId)==recentIds,"recent history lost root slots to children")
   let historyOffset=content.historyList.scrollView.contentView.bounds.origin
-  content.table.scrollRowToVisible(content.visibleRows.count-1);content.activeList.updateSticky();content.view.layoutSubtreeIfNeeded()
+  let lastSessionRow=content.visibleRows.lastIndex{$0.sessionId != nil}!
+  content.table.scrollRowToVisible(lastSessionRow);content.activeList.updateSticky();content.view.layoutSubtreeIfNeeded()
   check(content.historyList.scrollView.contentView.bounds.origin==historyOffset,"activity scrolling moved recent history")
   check(content.activeList.stickyRootId=="parent","expanded root scrolled away from its children")
-  content.table.selectRowIndexes(IndexSet(integer:content.visibleRows.count-1),byExtendingSelection:false)
+  content.table.selectRowIndexes(IndexSet(integer:lastSessionRow),byExtendingSelection:false)
   for _ in 0..<20{content.handleKey(126)}
   let selectedRect=content.table.rect(ofRow:content.table.selectedRow)
   check(selectedRect.minY>=content.scrollView.contentView.bounds.minY+64,"keyboard selection is covered by the pinned root")
@@ -141,7 +184,7 @@ import CryptoKit
    content.view.cacheDisplay(in:content.view.bounds,to:bitmap)
    try bitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:target))
   }
-  // Compact sections share four whole rows: keep a balanced split when both
+  // Compact sections share four root slots: keep a balanced split when both
   // overflow and lend unused slots without showing an unnecessary disclosure.
   for (aCount,hCount,aSlots,hSlots) in [(5,5,2,2),(1,5,1,3),(5,1,3,1),(0,5,0,4),(5,0,4,0),(3,1,3,1),(2,2,2,2),(1,1,1,1)] {
    let aIds=(0..<aCount).map{"pool-a-\($0)"},hIds=(0..<hCount).map{"pool-h-\($0)"}
@@ -165,10 +208,12 @@ import CryptoKit
   constrainedWindow.contentViewController=constrained;constrained.view.layoutSubtreeIfNeeded()
   let constrainedLabels=Set(descendants(constrained.view).compactMap{$0 as? NSButton}.filter{!$0.isHiddenOrHasHiddenAncestor}.compactMap{$0.accessibilityLabel()})
   check(constrained.activeList.frame.height==64 && constrained.historyList.frame.height==64 && constrained.view.frame.height<=400,"constrained panel cuts a row or exceeds the screen")
-  check(constrainedLabels.contains("展开活动会话") && constrainedLabels.contains("展开最近会话"),"final constrained heights conceal a session without its disclosure")
+  check(constrainedLabels.contains("向下查看活动会话") && constrainedLabels.contains("向下查看最近会话"),"constrained root-only sections have no paging controls")
+  let sectionActive=(0..<5).map{"section-active-\($0)"}
+  let sectionStore=SessionMenuStore()
+  check(sectionStore.ingest(data((sectionActive+recentIds).map{node($0)},active:sectionActive,history:recentIds),at:1000),"section expansion fixture decode")
   let sections=SessionMenuViewController(availableSize:NSSize(width:420,height:600))
-  sections.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil)
-  sections.toggle("parent")
+  sections.update(snapshot:sectionStore.snapshot,status:"DSH 已连接",stale:false,error:nil)
   let sectionWindow=NSWindow(contentRect:sections.view.frame,styleMask:[],backing:.buffered,defer:false)
   sectionWindow.contentViewController=sections;sections.view.layoutSubtreeIfNeeded()
   func sectionButton(_ label:String)->NSButton? {descendants(sections.view).compactMap{$0 as? NSButton}.first{!$0.isHidden && $0.accessibilityLabel()==label}}
@@ -198,15 +243,11 @@ import CryptoKit
   while let next=sectionButton("向下查看活动会话"),next.isEnabled,steps<500 {next.performClick(nil);steps+=1}
   let end=sections.activeList.scrollView.contentView.bounds
   check(end.maxY>=sections.activeList.naturalHeight-1 && steps>0 && steps<500,"arrow navigation cannot reach the last child")
-  check(sections.activeList.stickyRootId=="parent" && sectionButton("向上查看活动会话")?.isEnabled==true,"arrow navigation lost the root or return control")
-  let stickyContainer=sections.activeList.subviews.compactMap{$0 as? NSVisualEffectView}.first!
-  let stableStickyRow=stickyContainer.subviews.first
-  sections.activeList.updateSticky()
-  check(stickyContainer.subviews.first===stableStickyRow,"unchanged sticky root was rebuilt during viewport layout")
+  check(sectionButton("向上查看活动会话")?.isEnabled==true,"arrow navigation lost the return control")
   let endOrigin=end.origin
   sections.activeList.table.scrollWheel(with:wheel);sections.activeList.scrollView.scrollWheel(with:wheel)
   check(sections.activeList.scrollView.contentView.bounds.origin==endOrigin,"expanded panel still responds to the wheel")
-  sections.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil)
+  sections.update(snapshot:sectionStore.snapshot,status:"DSH 已连接",stale:false,error:nil)
   check(sections.activeList.frame.height==expandedActivity && sections.activeList.scrollView.contentView.bounds.origin==endOrigin,"ordinary refresh resets expansion or arrow position")
   sectionButton("向上查看活动会话")!.performClick(nil)
   check(sections.activeList.scrollView.contentView.bounds.minY<end.minY,"up arrow did not return to previous children")
@@ -223,7 +264,7 @@ import CryptoKit
   sections.activeList.table.scrollRowToVisible(sections.activeList.rows.count-1)
   check(sections.activeList.table.rows(in:sections.activeList.scrollView.contentView.bounds).contains(sections.activeList.rows.count-1),"bounded expanded tree lost its last child")
   let shortScreen=SessionMenuViewController(availableSize:NSSize(width:300,height:400))
-  shortScreen.update(snapshot:split.snapshot,status:"DSH 已连接",stale:false,error:nil);shortScreen.toggle("parent")
+  shortScreen.update(snapshot:sectionStore.snapshot,status:"DSH 已连接",stale:false,error:nil)
   let shortWindow=NSWindow(contentRect:shortScreen.view.frame,styleMask:[],backing:.buffered,defer:false)
   shortWindow.contentViewController=shortScreen;shortScreen.view.layoutSubtreeIfNeeded()
   let shortActivity=shortScreen.activeList.frame.height,shortHistory=shortScreen.historyList.frame.height
@@ -232,7 +273,7 @@ import CryptoKit
   check(shortScreen.activeList.frame.height>=shortActivity && shortScreen.historyList.frame.height==shortHistory,"small-screen expansion shrank activity or enlarged collapsed history")
   shortButton("向下查看活动会话")!.performClick(nil)
   let shortClip=shortScreen.activeList.scrollView.contentView.bounds
-  check((0..<shortScreen.activeList.rows.count).contains{index in let rect=shortScreen.activeList.table.rect(ofRow:index);return shortScreen.activeList.rows[index].depth>0 && rect.minY>=shortClip.minY+64 && rect.maxY<=shortClip.maxY},"sticky root covers every child on a short screen")
+  check(shortClip.minY>0,"small-screen paging did not move the viewport")
   shortButton("展开最近会话")!.performClick(nil)
   check(shortScreen.activeList.frame.height>=shortActivity && shortScreen.historyList.frame.height>=shortHistory && shortScreen.view.frame.height<=400,"two-section expansion shrinks compact rows or exceeds short screen")
   let few=SessionMenuStore();check(few.ingest(data([node("one"),node("recent",nil,[],"completed")],active:["one"],history:["recent"]),at:1000),"short section fixture decode")

@@ -85,6 +85,20 @@ test('宿主保留请求直到客户端确认对应会话', async (t) => {
   assert.equal(await handler('pending', {}), null)
   assert.equal(JSON.parse(readFileSync(join(dir, 'jump-result.json'))).sessionId, 'session-1')
 })
+test('settings navigation uses a typed receipt and cannot be acknowledged as a session jump', async t => {
+  const { dir, handler } = host(t)
+  const request = { requestId: 'notify-settings', kind: 'open-notify-settings', createdAt: Date.now() }
+  writeFileSync(join(dir, 'open-session.json'), JSON.stringify(request))
+  assert.deepEqual(await handler('pending', {}), request)
+  assert.equal((await handler('ack', { requestId: request.requestId, sessionId: 'dsh-macos-notify' })).ok, false)
+  assert.equal((await handler('ack', { requestId: request.requestId, kind: request.kind })).ok, true)
+  assert.equal(await handler('pending', {}), null)
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(dir, 'jump-result.json')))).sort(), ['confirmedAt', 'createdAt', 'kind', 'requestId'])
+  for (const patch of [{ kind: 'arbitrary-settings' }, { sessionId: 'session-1' }, { createdAt: Date.now() - 180000 }]) {
+    writeFileSync(join(dir, 'open-session.json'), JSON.stringify({ ...request, requestId: 'invalid-settings', ...patch }))
+    assert.equal(await handler('pending', {}), null)
+  }
+})
 test('Host derives cold-child address from its fresh bounded menu tree, not arbitrary incoming routing hints',async t=>{
  const f=host(t);f.put('child-request','grandchild')
  const incoming=JSON.parse(readFileSync(join(f.dir,'open-session.json'),'utf8'))

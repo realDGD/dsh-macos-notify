@@ -22,7 +22,9 @@ if (automatic && process.platform === 'darwin' && !dry) {
   if (!/^\d+(?:\.\d+)*$/.test(release) || Number(release.split('.')[0]) < 13) throw new Error('DSH Notify requires macOS 13 or later.')
 }
 const dir = resolve(option('--dsh-home') || (homeOverride ? join(home, '.dsh') : process.env.DSH_HOME || join(home, '.dsh')), 'dsh-jump')
-const target = join(home, 'Applications/DSH Notify.app'), legacy = join(home, 'Applications/DSH Jump.app')
+const applications = resolve(option('--applications-dir') || (homeOverride ? join(home, 'Applications') : '/Applications'))
+const target = join(applications, 'DSH Notify.app')
+const appPaths = [...new Set([target, join(home, 'Applications/DSH Notify.app'), join(home, 'Applications/DSH Jump.app'), join(applications, 'DSH Jump.app')])]
 const label = 'com.dgd.dsh-jump-notifier'
 const agent = join(home, 'Library/LaunchAgents', label + '.plist'), manifest = join(dir, 'install.json')
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -41,6 +43,14 @@ const fingerprint = (folder, include = () => true) => {
 }
 const owned = app => { try { return readFileSync(join(app, 'Contents/Info.plist'), 'utf8').includes('<string>' + label + '</string>') } catch { return false } }
 const agentOwned = () => { try { return readFileSync(agent, 'utf8').includes('<!-- dsh-macos-notify managed -->') } catch { return false } }
+let uninstallApp
+if (args.includes('--uninstall')) {
+  if (!existsSync(manifest)) throw new Error('No installer ownership record; refusing to remove files.')
+  const record = JSON.parse(readFileSync(manifest, 'utf8'))
+  if (!appPaths.includes(record.app) || record.label !== label) throw new Error('Installation ownership mismatch')
+  uninstallApp = record.app
+}
+const destination = uninstallApp || target
 const checkPanels = directory => {
   try {
     const lease = JSON.parse(readFileSync(join(directory, 'open-panels.json'), 'utf8'))
@@ -56,9 +66,10 @@ const stop = () => {
     const match = line.trim().match(/^(\d+)\s+(.+)$/)
     if (!match) continue
     const command = match[2]
-    const executable = [join(target, 'Contents/MacOS/DSHNotify'), join(legacy, 'Contents/MacOS/DSHJumpNotify')]
+    const executable = (uninstallApp ? [uninstallApp] : appPaths).flatMap(app => [join(app, 'Contents/MacOS/DSHNotify'), join(app, 'Contents/MacOS/DSHJumpNotify')])
       .find(path => command === path || command.startsWith(path + ' '))
     if (!executable) continue
+    if (!owned(dirname(dirname(dirname(executable))))) throw new Error('Cannot verify the running helper application. Close DSH Desktop and the helper before upgrading.')
     const activeState = command.slice(executable.length).match(/^ --state-dir (\/.+)$/)?.[1]
     if (!activeState || !existsSync(activeState) || !lstatSync(activeState).isDirectory()) {
       throw new Error('Cannot verify the running helper state directory. Close DSH Desktop and the helper before upgrading so drafts are preserved.')
@@ -79,26 +90,22 @@ const stop = () => {
   }
 }
 if (existsSync(agent) && !agentOwned()) throw new Error('Existing startup item is not owned by this installer; preserve it and resolve the conflict first.')
-if (existsSync(target) && !owned(target)) throw new Error('Existing destination is not this helper; refusing to overwrite it.')
+if (existsSync(destination) && !owned(destination)) throw new Error('Existing destination is not this helper; refusing to overwrite it.')
 function install() {
-if (args.includes('--uninstall')) {
-  if (!existsSync(manifest)) throw new Error('No installer ownership record; refusing to remove files.')
-  const record = JSON.parse(readFileSync(manifest, 'utf8'))
-  if (record.app !== target || record.label !== label) throw new Error('Installation ownership mismatch')
+if (uninstallApp) {
   stop()
-  if (existsSync(target)) rmSync(target, { recursive: true })
+  if (existsSync(uninstallApp)) rmSync(uninstallApp, { recursive: true })
   if (agentOwned()) rmSync(agent)
   rmSync(manifest)
   console.log('Removed helper and login startup. Settings and backups are preserved. Remove the DSH plugin in Plugins separately.')
 } else {
   if (process.platform !== 'darwin' && !dry) throw new Error('macOS required')
   mkdirSync(dir, { recursive: true, mode: 0o700 })
-  mkdirSync(dirname(target), { recursive: true })
   const staging = join(dirname(target), `.DSH Notify.stage-${randomUUID()}.app`)
   const supplied = option('--app')
   const sourceFingerprint = supplied ? fingerprint(resolve(supplied)) : createHash('sha256')
     .update(process.arch).update('\0').update(fingerprint(join(root,'macos'), path => path.endsWith('.swift') || path === 'Info.plist' || path.endsWith('.sh') || path.startsWith('assets/'))).digest('hex')
-  if (automatic && existsSync(target) && owned(target)) {
+  if (automatic && existsSync(target) && owned(target) && !appPaths.some(app => app !== target && existsSync(app) && owned(app))) {
     try {
       const record = JSON.parse(readFileSync(manifest, 'utf8'))
       if (record.app === target && record.label === label && record.sourceFingerprint === sourceFingerprint && record.appFingerprint === fingerprint(target)) {
@@ -126,18 +133,32 @@ if (args.includes('--uninstall')) {
       // Compute provenance before replacing the installed bundle.
       const record = { version: 3, app: target, label, startup: 'desktop', sourceFingerprint, appFingerprint: fingerprint(staging) }
       writeFileSync(temporaryManifest, JSON.stringify(record) + '\n', { mode: 0o600 })
-      for (const previous of [target, legacy]) if (existsSync(previous) && owned(previous)) {
+      for (const previous of appPaths) if (existsSync(previous) && owned(previous)) {
         const backup = join(backupDir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.app`)
-        renameSync(previous, backup); previousApps.push({ previous, backup })
+        const retired = join(dirname(previous), `.DSH Notify.previous-${randomUUID()}.app`)
+        try {
+          cpSync(previous, backup, { recursive: true, errorOnExist: true, force: false })
+          if (fingerprint(previous) !== fingerprint(backup)) throw new Error('Previous helper backup verification failed')
+          // Retire beside the source so rollback stays atomic even with a home on another volume.
+          renameSync(previous, retired)
+        } catch (error) { if (existsSync(backup)) rmSync(backup, { recursive: true }); throw error }
+        previousApps.push({ previous, backup, retired })
         console.log('Previous helper retained as backup.')
       }
       renameSync(staging, target); replaced = true
       renameSync(temporaryManifest, manifest)
     } catch (error) {
       if (replaced) rmSync(target, { recursive: true })
-      for (const { previous, backup } of previousApps.reverse()) renameSync(backup, previous)
+      for (const { previous, backup, retired } of previousApps.reverse()) {
+        renameSync(retired, previous)
+        rmSync(backup, { recursive: true })
+      }
       throw error
     } finally { if (existsSync(temporaryManifest)) rmSync(temporaryManifest) }
+    for (const { retired } of previousApps) {
+      try { rmSync(retired, { recursive: true }) }
+      catch { console.warn('Installed helper successfully, but could not remove retired app: ' + retired) }
+    }
     if (!dry && !deferStart) {
       execFileSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister', ['-f', target])
       execFileSync('/usr/bin/open', ['-g', '-j', '-a', target, '--args', '--state-dir', dir])
@@ -147,11 +168,14 @@ if (args.includes('--uninstall')) {
 }
 }
 // Different DSH profiles can install concurrently into the same Applications directory.
-mkdirSync(dirname(target), { recursive: true })
-const lock = join(dirname(target), '.DSH Notify.install.lock')
+const lock = join(dirname(destination), '.DSH Notify.install.lock')
 let handle
+const directoryError = 'Cannot prepare application directory ' + dirname(destination) + '. Use an account with write access; the installed helper has not been replaced.'
+try { mkdirSync(dirname(destination), { recursive: true }) }
+catch (error) { throw new Error(directoryError, { cause: error }) }
 try { handle = openSync(lock, 'wx', 0o600) }
 catch (error) {
+  if (['EACCES', 'EPERM', 'EROFS', 'ENOTDIR'].includes(error.code)) throw new Error(directoryError, { cause: error })
   if (error.code !== 'EEXIST') throw error
   throw new Error('Another native installation may be active. Retry after it finishes. If it crashed, confirm the PID in the installer lock has exited before removing the lock: ' + lock)
 }

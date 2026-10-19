@@ -98,7 +98,7 @@ You need **macOS 13 or later** and official **DSH Desktop**. The tested DSH vers
    github:realDGD/dsh-macos-notify
    ```
 
-3. **Approve the build.** If build scripts are blocked, review this plugin and select **Allow these scripts and retry**. Wait for installation to finish. The helper is installed at `~/Applications/DSH Notify.app`. A matching helper is reused; upgrades retain settings and back up the previous App.
+3. **Approve the build.** If build scripts are blocked, review this plugin and select **Allow these scripts and retry**. Wait for installation to finish. The helper is installed at `/Applications/DSH Notify.app`. A matching helper is reused; upgrades retain settings and back up the previous App.
 4. **Enable and restart.** Select **Enable now** for DSH Notify. Save your ongoing work, quit Desktop with **⌘Q**, then reopen it; closing a window does not quit the app. Desktop starts the helper automatically. Allow notifications for **DSH Notify** when macOS asks.
 5. **Check that it works.** Open **Settings → DSH Notify**, check the helper connection and notification permission, then send the safe test notification and click it. Confirm that the matching session opens. Accepted by macOS means delivery was accepted; an actual successful click verifies navigation.
 
@@ -129,7 +129,7 @@ https://github.com/realDGD/dsh-macos-notify
 
 Read the repository README and docs/install.md first. Check the DSH version, macOS 13+ requirement and Apple Command Line Tools.
 Use Desktop's desktop profile. Prefer the plugin manager or the dsh CLI supplied by Desktop.
-Check whether ~/Applications/DSH Notify.app has been built and installed. If the public version does not support automatic builds, install the helper from the same revision using its source instructions.
+Check whether /Applications/DSH Notify.app has been built and installed. If the public version does not support automatic builds, install the helper from the same revision using its source instructions.
 Keep existing settings and previous-helper backups. Tell me exactly what to do when a system installation, build approval or notification permission needs my action.
 After installation, have me save ongoing work, quit and reopen Desktop, then guide me through sending and clicking the safe test notification to verify the matching session.
 ```

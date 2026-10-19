@@ -98,7 +98,7 @@ DSH 决定请求是否有效。先被接受的回答生效；已回答、取消�
    github:realDGD/dsh-macos-notify
    ```
 
-3. **允许构建。** 如果提示构建脚本被阻止，核对此插件后点击 **「允许这些脚本并重试」**，等待安装完成。助手会安装到 `~/Applications/DSH Notify.app`；已有匹配助手会复用，升级会保留设置并备份旧版。
+3. **允许构建。** 如果提示构建脚本被阻止，核对此插件后点击 **「允许这些脚本并重试」**，等待安装完成。助手会安装到 `/Applications/DSH Notify.app`；已有匹配助手会复用，升级会保留设置并备份旧版。
 4. **启用并重启。** 安装成功后启用 **DSH Notify**（英文按钮为 **Enable now**）。保存当前任务，按 **⌘Q** 退出 DSH Desktop，再重新打开；只关闭窗口不会退出应用。助手会随 Desktop 自动启动。macOS 询问时允许 **DSH Notify** 的通知。
 5. **确认可用。** 打开 **设置 → DSH Notify**，检查助手连接和通知权限，发送安全测试通知并点击，确认打开对应会话。出现「系统已接受」只说明通知已投递，实际点击成功才证明跳转可用。
 
@@ -129,7 +129,7 @@ https://github.com/realDGD/dsh-macos-notify
 
 先阅读仓库 README 和 docs/install.md，核对 DSH 版本、macOS 13+ 要求和 Apple Command Line Tools。
 使用 Desktop 的 desktop profile，优先通过插件管理器或 Desktop 自带的 dsh CLI 安装。
-检查 ~/Applications/DSH Notify.app 是否已编译安装；如果当前公开版本不支持自动构建，按同一版本的源码文档补装助手。
+检查 /Applications/DSH Notify.app 是否已编译安装；如果当前公开版本不支持自动构建，按同一版本的源码文档补装助手。
 保留已有设置和旧助手备份。需要我完成系统安装、构建授权或通知权限时，请告诉我具体操作。
 安装完成后，让我先保存当前任务，再退出并重新打开 Desktop，最后指导我发送安全测试通知并点击验证对应会话。
 ```

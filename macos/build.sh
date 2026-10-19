@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP="${1:-$HOME/Applications/DSH Notify.app}"
+APP="${1:-/Applications/DSH Notify.app}"
 DESKTOP_APP="${DSH_DESKTOP_APP:-/Applications/DeepSeek Harness.app}"
 if [[ -e "$APP" ]]; then
   echo "Target exists. Build into a fresh staging path or run macos/install.sh to upgrade with backup." >&2

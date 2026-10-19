@@ -22,13 +22,15 @@ dsh plugin --profile desktop add github:realDGD/dsh-macos-notify
 
 Desktop 插件管理器可直接添加同一个 GitHub 地址。若提示脚本被阻止，选择 **允许这些脚本并重试**；CLI 会列出该 profile 的 `pnpm-workspace.yaml` 和此插件的精确版本键，将**该键**设为 `true` 后重试原命令。不同 Git 提交可能有不同授权键，更新时按提示复核，不要开启全局依赖脚本权限。DSH 会先拦截尚未授权的构建，助手不会因此被安装。
 
-授权后，从当前插件包的 Swift/资源源码构建本机架构助手，验证签名，再安装到 `~/Applications/DSH Notify.app`。设置与旧版备份保留，匹配且完整的已安装助手复用。需要替换且原生面板仍打开或保留未提交问答草稿时，安装器拒绝升级；先完成请求，或确认不再需要草稿后点击「清空回答」，再关闭面板并重试。仅关闭问答窗口仍会保留草稿，不视为同意丢弃。安装器也核对运行中助手的实际状态目录；目录无法确认时须先正常退出 Desktop 和助手再升级，不会猜测目录后终止进程。没有安装同一插件的其他 profile 不会因此获得插件。`--profile web` 同样可以触发助手编译，但不会把插件装到 Desktop 的 `desktop` profile；当前原生运行范围仍是官方 Desktop。
+授权后，从当前插件包的 Swift/资源源码构建本机架构助手，验证签名，再安装到 `/Applications/DSH Notify.app`。设置与旧版备份保留，匹配且完整的已安装助手复用。需要替换且原生面板仍打开或保留未提交问答草稿时，安装器拒绝升级；先完成请求，或确认不再需要草稿后点击「清空回答」，再关闭面板并重试。仅关闭问答窗口仍会保留草稿，不视为同意丢弃。安装器也核对运行中助手的实际状态目录；目录无法确认时须先正常退出 Desktop 和助手再升级，不会猜测目录后终止进程。没有安装同一插件的其他 profile 不会因此获得插件。`--profile web` 同样可以触发助手编译，但不会把插件装到 Desktop 的 `desktop` profile；当前原生运行范围仍是官方 Desktop。
+
+默认安装到 `/Applications/DSH Notify.app`；目录不可写时明确报错，不自动提权或回退到用户目录。旧版 `~/Applications/DSH Notify.app` 和 `~/Applications/DSH Jump.app` 会在新助手编译、签名及备份验证完成后迁移，设置和通知身份保留。Desktop 优先启动新位置，迁移前仍可启动旧用户目录中的助手。备份先复制并核对内容，旧助手在其原目录临时退役，以支持用户目录位于其他磁盘时的失败回滚。
 
 安装期间不弹出助手或通知权限窗口。正常重启 Desktop，插件启动助手后再授予 macOS 通知权限。助手跟随 Desktop 启停，不创建开机 LaunchAgent。本地编译使用 ad-hoc 签名，不等于 Apple 公证，也不绕过 DSH/macOS 安全策略；分发构建好的 App 仍需另外处理签名、公证与下载隔离属性。
 
-构建与签名失败时保留旧助手。多个 profile 同时安装时，公共应用目录的安装锁阻止并发替换。若安装进程被强制杀死留下 `~/Applications/.DSH Notify.install.lock`，先读取记录的 PID 并确认该进程已退出，再移除这一锁文件重试，不要删除仍在使用的锁。
+构建与签名失败时保留旧助手。多个 profile 同时安装时，公共应用目录的安装锁阻止并发替换。若安装进程被强制杀死留下 `/Applications/.DSH Notify.install.lock`，先读取记录的 PID 并确认该进程已退出，再移除这一锁文件重试，不要删除仍在使用的锁。
 
-需要只装插件时，为安装命令设置 `DSH_NOTIFY_SKIP_NATIVE_INSTALL=1`，之后从匹配源码运行 `bash macos/install.sh`。`--ignore-scripts` 也会跳过自动安装。`DSH_NOTIFY_INSTALL_HOME` 是隔离验证专用目录覆盖，日常安装无需设置；`DSH_HOME` 自定义仍按该状态目录保存生产设置与备份。
+需要只装插件时，为安装命令设置 `DSH_NOTIFY_SKIP_NATIVE_INSTALL=1`，之后从匹配源码运行 `bash macos/install.sh`。`--ignore-scripts` 也会跳过自动安装。`DSH_NOTIFY_INSTALL_HOME` / `--home` 和 `--applications-dir` 是隔离验证使用的目录覆盖，日常安装无需设置；`DSH_HOME` 自定义仍按该状态目录保存生产设置与备份。
 
 ## 手动从 Git 仓库安装
 
@@ -46,7 +48,7 @@ bash macos/install.sh
 DSH_DESKTOP_APP="/Applications/DeepSeek Harness.app" bash macos/install.sh
 ```
 
-助手安装到 `~/Applications/DSH Notify.app`，构建时复制本机官方 Desktop 的图标。仓库和压缩包不分发官方图标。系统弹出通知权限提示时，允许 **DSH Notify** 的通知。
+助手安装到 `/Applications/DSH Notify.app`，构建时复制本机官方 Desktop 的图标。仓库和压缩包不分发官方图标。系统弹出通知权限提示时，允许 **DSH Notify** 的通知。
 
 在 Desktop 的 **Plugins → Add plugin** 中填写仓库的绝对路径，安装并启用。也可以使用 `github:realDGD/dsh-macos-notify#main`，或将 `main` 换成已核验的完整 SHA；包含自动安装脚本的版本可直接构建助手，旧版本仍需从相同提交手动安装。Desktop 用户无须全局安装 npm 版 `dsh`。首次安装后正常退出并重新打开 Desktop，确保 Host 和客户端加载新模块。
 

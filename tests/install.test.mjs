@@ -191,3 +191,57 @@ test('failed ownership-record replacement restores the previous app and cleans s
   assert.deepEqual(readdirSync(join(f.home, 'Applications')), ['DSH Notify.app'])
   assert.equal(readdirSync(state).some(name => name.startsWith('.install-')), false)
 })
+
+test('migration to the shared Applications directory preserves settings and retires the user app', t => {
+  const f = fixture(t); f.run('--automatic')
+  const shared = join(f.home, 'Shared Applications'), state = join(f.home, '.dsh/dsh-jump')
+  writeFileSync(join(state, 'settings.json'), '{"sound":false}')
+  writeFileSync(join(f.app, 'Contents/MacOS/DSHNotify'), 'v2')
+  f.run('--automatic', '--applications-dir', shared)
+  assert.equal(readFileSync(join(shared, 'DSH Notify.app/Contents/MacOS/DSHNotify'), 'utf8'), 'v2')
+  assert.equal(existsSync(join(f.home, 'Applications/DSH Notify.app')), false)
+  assert.equal(readFileSync(join(state, 'settings.json'), 'utf8'), '{"sound":false}')
+  assert.equal(JSON.parse(readFileSync(join(state, 'install.json'))).app, join(shared, 'DSH Notify.app'))
+  assert.ok(readdirSync(join(state, 'backups')).some(name => name.endsWith('.app') && readFileSync(join(state, 'backups', name, 'Contents/MacOS/DSHNotify'), 'utf8') === 'v1'))
+  f.run('--applications-dir', shared, '--uninstall')
+  assert.equal(existsSync(join(shared, 'DSH Notify.app')), false)
+  assert.equal(readFileSync(join(state, 'settings.json'), 'utf8'), '{"sound":false}')
+})
+
+test('failed migration restores the user app and does not leave a shared app', t => {
+  const f = fixture(t); f.run('--automatic')
+  const shared = join(f.home, 'Shared Applications'), record = join(f.home, '.dsh/dsh-jump/install.json')
+  rmSync(record); mkdirSync(record)
+  assert.throws(() => f.run('--applications-dir', shared))
+  assert.equal(readFileSync(join(f.home, 'Applications/DSH Notify.app/Contents/MacOS/DSHNotify'), 'utf8'), 'v1')
+  assert.equal(existsSync(join(shared, 'DSH Notify.app')), false)
+  assert.deepEqual(readdirSync(join(f.home, 'Applications')), ['DSH Notify.app'])
+})
+
+test('migration refuses a pending draft or an unrelated shared destination', t => {
+  const f = fixture(t); f.run('--automatic')
+  const shared = join(f.home, 'Shared Applications'), state = join(f.home, '.dsh/dsh-jump')
+  writeFileSync(join(state, 'open-panels.json'), JSON.stringify({ updatedAt: Date.now(), ids: [], draftIds: ['draft'] }))
+  assert.throws(() => f.run('--applications-dir', shared), /Close native/)
+  rmSync(join(state, 'open-panels.json'))
+  const foreign = join(shared, 'DSH Notify.app'); mkdirSync(foreign, { recursive: true })
+  writeFileSync(join(foreign, 'unrelated'), 'keep')
+  assert.throws(() => f.run('--applications-dir', shared), /not this helper/)
+  assert.equal(readFileSync(join(foreign, 'unrelated'), 'utf8'), 'keep')
+  assert.equal(readFileSync(join(f.home, 'Applications/DSH Notify.app/Contents/MacOS/DSHNotify'), 'utf8'), 'v1')
+})
+
+test('uninstall recognizes the pre-migration ownership record', t => {
+  const f = fixture(t); f.run()
+  const shared = join(f.home, 'Not a directory'); writeFileSync(shared, 'keep')
+  f.run('--applications-dir', shared, '--uninstall')
+  assert.equal(existsSync(join(f.home, 'Applications/DSH Notify.app')), false)
+  assert.equal(existsSync(join(f.home, '.dsh/dsh-jump/install.json')), false)
+})
+
+test('an unusable Applications directory fails before changing the old app', t => {
+  const f = fixture(t); f.run()
+  const shared = join(f.home, 'Not a directory'); writeFileSync(shared, 'keep')
+  assert.throws(() => f.run('--applications-dir', shared), /Cannot prepare application directory/)
+  assert.equal(readFileSync(join(f.home, 'Applications/DSH Notify.app/Contents/MacOS/DSHNotify'), 'utf8'), 'v1')
+})

@@ -9,7 +9,7 @@ Repository-wide rules are in [`../../AGENTS.md`](../../AGENTS.md) and the plugin
 | Plane | Source | Runs as | How an edit takes effect |
 |---|---|---|---|
 | JS bundle | `lib/`, `cordis.patch.yml`, `package.json` | Host and client modules inside the DSH process | next plugin reload, when the profile resolves this directory as a `link:` |
-| Native helper | `macos/*.swift`, `macos/assets/`, `macos/Info.plist` | `~/Applications/DSH Notify.app`, a copy compiled and signed by the installer | only after the helper is rebuilt and installed; reloading JS does nothing |
+| Native helper | `macos/*.swift`, `macos/assets/`, `macos/Info.plist` | `/Applications/DSH Notify.app`, a copy compiled and signed by the installer | only after the helper is rebuilt and installed; reloading JS does nothing |
 
 The JS half owns the semantics: it observes official events, owns settings and the private state directory, publishes the bounded `session-menu.json` snapshot and reads the helper's `open-session.json` request. The helper owns everything the user sees and touches. Either half tolerates the other being absent — the helper renders the last valid snapshot, and the host catches every helper failure so a broken helper never breaks DSH.
 

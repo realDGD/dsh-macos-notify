@@ -2,11 +2,17 @@
 
 ## Supported scope
 
-- Target: official DSH Desktop 0.2.1-rc.1; community plugin and local macOS helper.
+- Target: official DSH Desktop 0.2.2-rc.1; community plugin and local macOS helper.
 - Node: 22+. DSH itself supplies its Host/client services.
 - Native deployment target: macOS 13+. Build is for the local architecture; this is not a certified universal binary.
 - Host native transport is private same-user files; navigation/settings use existing authenticated Connection Fetch routes.
 - Default state namespace and helper bundle identity retain historical compatibility; they are not an additional model bridge or a secret.
+
+## Current Desktop verification
+
+On Desktop `0.2.2-rc.1` with Cordis `4.1.0`, all 138 existing Node checks passed with the actual bundled runtime packages, including the session/query and format-catalog interfaces. The installed helper matches the plugin version `0.5.0` (Build 31), reports authorized notification permission, and the running Host publishes a ready session-menu snapshot. Notification delivery/clicks and live approval/question interactions were not exercised on this Desktop version; these checks do not establish their end-to-end acceptance.
+
+Development dependencies pin Cordis `4.1.0` and the directly tested session, session-query and format-catalog packages to `0.2.2-rc.1`. The runtime session peer range remains `>=0.2.0-rc.2 <0.3.0-0`; no application code or native helper change is required for this maintenance update.
 
 ## Evidence levels
 
@@ -58,7 +64,7 @@ The session menu publishes one complete `session-menu.json` snapshot per revisio
 - Cold child navigation uses the official SubagentAddress derived from a fresh private Host snapshot. Unknown/stale lineage produces a visible failure instead of guessing a workspace. No browser fallback is used by menu clicks.
 - These checks establish source/component contracts. Current Desktop reload, visible menu interaction and real notification/session-selection acknowledgement remain separate live acceptance steps. macOS 13/Intel device acceptance is still unverified.
 
-The menu uses the official 0.2.1-rc.1 session and format-catalog peer packages to fold the same retained observation; `sessionPersistence.stat` supplies lightweight revision tokens. Cache identity includes the persistence instance and session revision. Unchanged histories do not exceed the SDK’s prepared-cache capacity with repeated full reads, and no second uncancellable surface read is held across disposal. Development/manual source installs use `npm ci --ignore-scripts`; DSH package installs resolve the declared peer packages and run approved lifecycle scripts.
+The menu uses the runtime-provided session and format-catalog peer packages to fold the same retained observation; `sessionPersistence.stat` supplies lightweight revision tokens. Cache identity includes the persistence instance and session revision. Unchanged histories do not exceed the SDK’s prepared-cache capacity with repeated full reads, and no second uncancellable surface read is held across disposal. Development/manual source installs use `npm ci --ignore-scripts`; DSH package installs resolve the declared peer packages and run approved lifecycle scripts.
 
 ## v0.5.0 stable release
 

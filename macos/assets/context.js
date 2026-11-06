@@ -2,7 +2,7 @@
 window.renderContext = function (items, strings, language) {
   window.DSHUITranslations = strings || {}
   const T = source => window.DSHUITranslations[source] || source
-  document.documentElement.lang = language === 'en' ? 'en' : 'zh'
+  document.documentElement.lang = language
   const scrollTop = document.scrollingElement.scrollTop
   const root = document.getElementById('context')
   root.replaceChildren()

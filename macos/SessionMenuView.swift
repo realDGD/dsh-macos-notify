@@ -139,6 +139,7 @@ final class SessionMenuRowView:NSTableCellView {
  required init?(coder:NSCoder){fatalError("init(coder:) has not been implemented")}
  private func configureActions() {
   actions.orientation = .vertical;actions.alignment = .width;actions.spacing=3
+  let approvalWidth=max(76,ceil([L("允许一次"),L("拒绝")].map{($0 as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:10)]).width}.max() ?? 0)+20)
   picker.font = .systemFont(ofSize:10);picker.addItem(withTitle:interactions.count>1 ? L("处理请求（{0}）", ["0": String(describing: interactions.count)]):L("处理请求"))
   picker.menu?.autoenablesItems=false
   picker.setAccessibilityLabel(L("处理当前会话的审批或问答"))
@@ -155,7 +156,7 @@ final class SessionMenuRowView:NSTableCellView {
     if interactions.count==1 {
      let button:NSButton=(action == .allow || action == .deny) ? MenuApprovalButton(title:action.title,target:entry.target,action:entry.action):NSButton(title:action.title,target:entry.target,action:entry.action)
      button.font = .systemFont(ofSize:10);button.bezelStyle = .rounded;button.isEnabled=entry.isEnabled
-     if action == .allow || action == .deny {button.bezelColor=action == .allow ? MenuStatusPalette.green:MenuStatusPalette.red;button.contentTintColor = .white;button.widthAnchor.constraint(equalToConstant:76).isActive=true;button.heightAnchor.constraint(equalToConstant:22).isActive=true}
+     if action == .allow || action == .deny {button.bezelColor=action == .allow ? MenuStatusPalette.green:MenuStatusPalette.red;button.contentTintColor = .white;button.widthAnchor.constraint(equalToConstant:approvalWidth).isActive=true;button.heightAnchor.constraint(equalToConstant:22).isActive=true}
      button.setAccessibilityLabel(action.title+" · "+item.title);actions.addArrangedSubview(button)
     }
    }
@@ -210,7 +211,7 @@ final class MenuSubagentMoreRowView:NSTableCellView {
   button.isBordered=false
   button.title=""
   button.target=self;button.action=#selector(toggle)
-  let a11y=(expanded ? L("收起"):L("展开更多"))+parent.displaySessionTitle+L("的子智能体")
+  let a11y=L(expanded ? "收起 {0} 的子智能体":"展开 {0} 的更多子智能体",["0":parent.displaySessionTitle])
   button.setAccessibilityLabel(a11y);button.toolTip=a11y
   iconView.translatesAutoresizingMaskIntoConstraints=false
   iconView.image=NSImage(systemSymbolName:expanded ? "chevron.up":"chevron.down",accessibilityDescription:nil)?.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize:9,weight:.semibold))
@@ -218,12 +219,8 @@ final class MenuSubagentMoreRowView:NSTableCellView {
   labelField.translatesAutoresizingMaskIntoConstraints=false
   labelField.font = .systemFont(ofSize:10.5,weight:.regular)
   labelField.textColor = .secondaryLabelColor
-  if UILocalization.language=="zh" {
-   labelField.stringValue=expanded ? "收起其余 \(hiddenCount) 个子智能体":"还有 \(hiddenCount) 个子智能体"
-  } else {
-   let suffix=hiddenCount==1 ? "subagent":"subagents"
-   labelField.stringValue=expanded ? "Collapse \(hiddenCount) \(suffix)":"\(hiddenCount) more \(suffix)"
-  }
+  let source=expanded ? (hiddenCount==1 ? "收起其余 {0} 个子智能体":"收起另外 {0} 个子智能体"):(hiddenCount==1 ? "还有 {0} 个子智能体":"另有 {0} 个子智能体")
+  labelField.stringValue=L(source,["0":String(hiddenCount)])
   addSubview(iconView);addSubview(labelField);addSubview(button)
   NSLayoutConstraint.activate([
    iconView.centerXAnchor.constraint(equalTo:leadingAnchor,constant:6+offset),

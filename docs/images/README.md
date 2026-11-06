@@ -2,7 +2,7 @@
 
 All workspaces, session names, messages, paths and requests are fabricated demonstration data. No live user conversation, account identifier or home-directory path is included.
 
-The unsuffixed assets are used by the Chinese README. The `-en` assets are used by the English README.
+The unsuffixed assets are used by the Chinese README. The `-en` assets are shared by the English, Japanese, Spanish, French, German, Russian and Portuguese READMEs. Each translated README identifies these as English examples and states that the plugin also provides its own language. The images are reused unchanged; they do not establish acceptance in those languages.
 
 | Image | Source and scope |
 | --- | --- |

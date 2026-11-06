@@ -5,7 +5,7 @@ kind: "package-reference"
 
 # DSH Notify
 
-[简体中文](README.md) · **English**
+[简体中文](README.md) · **English** · [日本語](README.ja.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Русский](README.ru.md) · [Português](README.pt.md)
 
 Native macOS notifications, approvals, question forms and a session menu bar for **DeepSeek Harness Desktop**. Handle a request from a notification or return to its workspace and session in Desktop.
 
@@ -22,7 +22,9 @@ This is a community plugin. The current stable version is **v0.5.0**. See [Relea
 | Complete question forms | One reminder opens all questions. Each keeps its choices and a separate text field, with single-select, multi-select and one batch submission. |
 | Session panel | Shows activity, nested subagents and five recent top-level sessions, with status labels and task progress. |
 | Context and code | Renders Markdown tables, formulas and code; Shell/JSON highlighting and soft-wrapped commands and arguments improve readability. |
-| DSH language support | Follows DSH's English or Chinese setting. Session names, questions, choices, answers and commands stay in their original language. |
+| DSH language support | Follows DSH in Simplified Chinese, English, Japanese, Spanish, French, German, Russian and Portuguese. Session names, questions, choices, answers and commands stay in their original language. |
+
+The six added languages are available in the current source and have not yet shipped in a stable release. Rebuild the matching native helper to use them. See [localization](docs/localization.md) for terminology sources and maintenance.
 
 DSH decides whether a request is still valid. The first accepted response wins; answered, canceled or expired requests are withdrawn, and stale buttons cannot repeat an action. Closing a question window or briefly disconnecting keeps each question’s draft. **Clear answers** resets all choices and text without canceling the request. Drafts stay in helper memory and are cleared when DSH confirms that the request was answered, canceled or withdrawn; quitting the helper discards unsent drafts. An unconfirmed result is never retried automatically.
 

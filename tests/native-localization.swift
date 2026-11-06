@@ -56,10 +56,35 @@ func logLine(_ text:String) {}
   precondition(descendants(approval.window!.contentView!).compactMap{$0 as? NSTextView}.contains{$0.string=="echo 中文"},"Approval command must remain literal")
   unnamed.sessionUntitled=false
   precondition(unnamed.displayTitle=="未命名会话","Actual title equal to fallback stays literal")
+  for language in UILocalization.supportedLanguages {
+   UILocalization.set(language)
+   precondition(UILocalization.normalize(language+"-XX")==language,"Regional language must resolve")
+   precondition(UILocalization.normalize("it-IT")=="en","Unknown language must fall back to English")
+   root.layoutSubtreeIfNeeded()
+   precondition(descendants(root).compactMap{$0 as? NSButton}.contains{$0.title==L("提交全部回答")},"Open form must update: \(language)")
+   precondition(windowInput.string=="窗口草稿 {0}" && windowOption.state == .on,"Draft and choice must survive: \(language)")
+   precondition(editor.input === oldInput && editor.input.string=="草稿 {0} $(echo private)","Editor identity must survive: \(language)")
+   let translatedStatus=descendants(root).compactMap{$0 as? NSTextField}.first{$0.stringValue==L("此请求已在 DSH 回答、取消或失效，无需再次提交。")}!
+   let height=translatedStatus.cell!.cellSize(forBounds:NSRect(x:0,y:0,width:translatedStatus.frame.width,height:10000)).height
+   precondition(translatedStatus.frame.height+1>=height,"Status must wrap: \(language)")
+   for (contentRoot,sources) in [(root,["清空回答","回到 DSH 会话","提交全部回答"]),(approval.window!.contentView!,["回到 DSH 会话","拒绝","允许一次"])] {
+    contentRoot.layoutSubtreeIfNeeded()
+    let titles=sources.map{L($0)}
+    for button in descendants(contentRoot).compactMap({$0 as? NSButton}).filter({titles.contains($0.title)}) {
+     let bounds=button.convert(button.bounds,to:contentRoot)
+     precondition(bounds.minX>=0 && bounds.maxX<=contentRoot.bounds.width && bounds.minY>=0,"Footer must fit: \(language) / \(button.title)")
+     precondition(button.frame.width+1>=button.intrinsicContentSize.width,"Footer must not truncate: \(language) / \(button.title)")
+    }
+   }
+   let content=NotificationInteractions.content(request)
+   precondition(content.categoryIdentifier=="DSH_QUESTIONS."+language && content.title==L("需要回答 {0} 个问题",["0":"1"]),"Notification language: \(language)")
+   precondition(categories.first{$0.identifier=="DSH_APPROVAL."+language}!.actions.first!.title==L("允许一次"),"Approval action: \(language)")
+   precondition(categories.first{$0.identifier=="DSH_QUESTIONS."+language}!.actions.first!.title==L("打开完整问答"),"Question action: \(language)")
+  }
   approval.close()
   UILocalization.set("zh")
   precondition(descendants(root).compactMap{$0 as? NSButton}.contains{$0.title=="提交全部回答"},"Switch back must work")
   controller.close()
-  print("Native localization, literal content, notification categories, narrow English layout and open-window draft identity passed")
+  print("Eight-language native localization, literal content, notification categories, narrow layouts and draft identity passed")
  }
 }

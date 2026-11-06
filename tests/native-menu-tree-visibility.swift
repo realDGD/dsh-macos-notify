@@ -46,7 +46,7 @@ import Cocoa
    let list=inHistory ? view.historyList:view.activeList,peer=inHistory ? view.activeList:view.historyList
    check(list.frame.height==216 && peer.frame.height==128,"initial subagent expansion should show two children plus the 24pt more row in \(inHistory ? "history":"activity")")
    check(Set(["parent","child-0","child-1"]).isSubset(of:visibleIds(list)),"initial two subagents not visible")
-   button(view,"展开更多parent的子智能体")!.performClick(nil)
+   button(view,"展开 parent 的更多子智能体")!.performClick(nil)
    check(list.frame.height==344 && peer.frame.height==128,"expanded descendants consume the default root quota in \(inHistory ? "history":"activity")")
    check(Set(children).isSubset(of:visibleIds(list)),"a fitting subtree requires a second section expansion")
    view.toggle("parent")

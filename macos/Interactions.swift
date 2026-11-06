@@ -684,9 +684,9 @@ final class NotificationInteractions {
         var categories = Set<UNNotificationCategory>()
         // Locale-specific IDs keep delivered notification buttons in their
         // sending language. Keep old IDs for pre-upgrade notifications.
-        for suffix in ["", ".en", ".zh"] {
+        for suffix in [""] + UILocalization.supportedLanguages.map({"." + $0}) {
             let locale = suffix.isEmpty ? "zh" : String(suffix.dropFirst())
-            func copy(_ source: String) -> String { locale == "zh" ? source : uiEnglish[source] ?? source }
+            func copy(_ source: String) -> String { UILocalization.copy(source, language: locale) }
             categories.insert(UNNotificationCategory(identifier: categoryApproval + suffix, actions: [
                 UNNotificationAction(identifier: allow, title: suffix.isEmpty ? "允许本次 (Allow)" : copy("允许一次"), options: []),
                 UNNotificationAction(identifier: deny, title: suffix.isEmpty ? "拒绝 (Deny)" : copy("拒绝"), options: [.destructive]),

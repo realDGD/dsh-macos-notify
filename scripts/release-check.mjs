@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import assert from 'node:assert/strict'
+import { supportedUILanguages } from '../lib/locale.js'
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)))
 const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--ignore-scripts', '--json'], { encoding: 'utf8' }))[0]
 const files = new Set(packed.files.map(f => f.path))
@@ -8,6 +9,8 @@ assert.equal(pkg.scripts.postinstall, 'node scripts/install.mjs --automatic --de
 assert(files.has('macos/compiler-flags.sh'), 'Native install package needs its SDK compatibility flags')
 for (const file of ['lib/locale.js','macos/UILocalization.swift','macos/UIStrings.swift','macos/assets/ui-strings.json','scripts/sync-locales.mjs']) assert(files.has(file), `Missing localization package file: ${file}`)
 execFileSync(process.execPath, [new URL('sync-locales.mjs', import.meta.url).pathname, '--check'], { stdio: 'pipe' })
+for (const locale of supportedUILanguages) assert(files.has(locale==='zh'?'README.md':`README.${locale}.md`), `Missing localized README: ${locale}`)
+assert(files.has('docs/localization.md'), 'Missing localization reference')
 for (const file of ['lib/index.js','lib/foreground.js','lib/diagnostics.js','lib/interactions.js','lib/notifications.js','lib/settings.js','lib/client.js','macos/main.swift','macos/NotificationPayload.swift','macos/Diagnostics.swift','macos/Interactions.swift','macos/MarkdownContext.swift','macos/assets/context.html','macos/assets/context.css','macos/assets/context.js','macos/assets/renderer.js','macos/assets/vendor/manifest.json','macos/assets/vendor/markdown-it/LICENSE','macos/assets/vendor/katex/LICENSE','THIRD_PARTY.md','CHANGELOG.md','macos/Info.plist','macos/build.sh','macos/install.sh','macos/uninstall.sh','scripts/install.mjs','LICENSE','README.md','README.en.md','cordis.patch.yml']) assert(files.has(file), `Missing package file: ${file}`)
 for (const file of ['lib/menu-model.js','lib/menu-source.js','lib/menu-host.js','lib/menu-cohort.js','lib/menu-control.js','macos/SessionMenuModel.swift','macos/SessionMenuControl.swift','macos/MenuSessionList.swift','macos/SessionMenuView.swift','macos/SessionMenu.swift','macos/MenuIcon.swift','macos/MenuResizeAnimation.swift','docs/compatibility.md']) assert(files.has(file), `Missing menu package file: ${file}`)
 assert.equal(pkg.name, 'dsh-macos-notify')

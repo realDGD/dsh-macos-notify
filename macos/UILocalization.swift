@@ -10,10 +10,15 @@ private final class UIBinding {
 // never enter this registry. Language changes do not reconstruct controls.
 private struct UILanguageRecord:Decodable {let version:Int;let locale:String}
 enum UILocalization {
- private(set) static var language = Locale.preferredLanguages.first?.lowercased().hasPrefix("zh") == true ? "zh":"en"
+ static func normalize(_ value:String)->String {
+  let base=value.lowercased().split(whereSeparator:{$0 == "-" || $0 == "_"}).first.map(String.init) ?? ""
+  return base == "zh" || uiCatalogs[base] != nil ? base:"en"
+ }
+ static var supportedLanguages:[String] {["zh"]+uiCatalogs.keys.sorted()}
+ private(set) static var language = normalize(Locale.preferredLanguages.first ?? "en")
  private static var bindings:[String:UIBinding]=[:],recipes:[String:UIRecipe]=[:]
  static func text(_ source:String,_ values:[String:String]=[:])->String {
-  var result=language == "zh" ? source:uiEnglish[source] ?? source
+  var result=copy(source,language:language)
   // Replace placeholders in a single pass; user values remain literal data.
   let regex=try! NSRegularExpression(pattern:#"\{([0-9]+)\}"#)
   let original=result as NSString
@@ -23,6 +28,9 @@ enum UILocalization {
   if recipes.count>2048 {recipes.removeAll(keepingCapacity:true)}
   recipes[result]=UIRecipe(source:source,values:values)
   return result
+ }
+ static func copy(_ source:String,language:String)->String {
+  language == "zh" ? source:uiCatalogs[language]?[source] ?? uiCatalogs["en"]?[source] ?? source
  }
  static func bind<T:AnyObject>(_ owner:T,slot:String,update:@escaping(T)->Void) {
   bindings=bindings.filter{$0.value.owner != nil}
@@ -34,7 +42,7 @@ enum UILocalization {
   return {text(recipe.source,recipe.values)}
  }
  @discardableResult static func set(_ value:String)->Bool {
-  guard ["en","zh"].contains(value),value != language else{return false}
+  guard supportedLanguages.contains(value),value != language else{return false}
   language=value
   let current=bindings
   for binding in current.values {if let owner=binding.owner{binding.update(owner)}}
@@ -45,7 +53,7 @@ enum UILocalization {
   let file=(directory as NSString).appendingPathComponent("ui-language.json")
   guard let size=(try? FileManager.default.attributesOfItem(atPath:file)[.size]) as? Int,size<=1024,
    let data=try? Data(contentsOf:URL(fileURLWithPath:file)),let record=try? JSONDecoder().decode(UILanguageRecord.self,from:data),
-   record.version == 1,["zh","en"].contains(record.locale) else{return false}
+   record.version == 1,supportedLanguages.contains(record.locale) else{return false}
   return set(record.locale)
  }
 }

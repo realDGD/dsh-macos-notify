@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Languages
+
+- Follow all eight DSH languages across settings, notifications and their actions, the menu bar, native approval/question windows and Markdown context helpers. Add Japanese, Spanish, French, German, Russian and Portuguese catalogs and READMEs using the English example images. Reuse official DeepSeek approval, session, question and subagent terminology; keep original content and drafts unchanged during language switches.
+- Size menu approval buttons to their translated labels, retaining the compact action menu when space is limited.
+
 ### Helper lifecycle
 
 - Launch the menu-bar helper immediately when a fast Desktop restart leaves the previous helper's `helper-status.json` looking fresh although that process has already exited: the activation check now also probes the recorded pid, and recovery probes run at 1s, 2.5s and 5s before the 10s watchdog. Reopening DSH no longer leaves the menu bar and notification helper absent for up to ten seconds; the live Host logs showed the helper arriving 12s after launch on a quick restart and 2s when the previous helper had already exited.

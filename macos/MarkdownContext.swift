@@ -80,7 +80,7 @@ final class MarkdownContextView: NSView, WKNavigationDelegate {
                 .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
             // JSON is an expression supplied by native code, not HTML/template
             // interpolation. Quotes, slashes and user text stay data.
-            let words = uiEnglish.keys.reduce(into: [String:String]()) { $0[$1] = L($1) }
+            let words = uiCatalogs["en"]!.keys.reduce(into: [String:String]()) { $0[$1] = L($1) }
             let copy = String(decoding: try JSONEncoder().encode(words), as: UTF8.self)
             webView.evaluateJavaScript("window.renderContext(\(json), \(copy), \"\(UILocalization.language)\")") { [weak self] _, error in
                 if let error { self?.fallback(error) } else { self?.onRendered?(nil) }

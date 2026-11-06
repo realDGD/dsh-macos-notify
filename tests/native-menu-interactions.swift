@@ -46,6 +46,25 @@ func logLine(_ message:String) {}
    NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo:host.leadingAnchor),row.trailingAnchor.constraint(equalTo:host.trailingAnchor),row.topAnchor.constraint(equalTo:host.topAnchor),row.bottomAnchor.constraint(equalTo:host.bottomAnchor)])
    host.layoutSubtreeIfNeeded();fixtureWindows.append(window)
   }
+  for language in UILocalization.supportedLanguages {
+   UILocalization.set(language)
+   for width:CGFloat in [280,400] {
+    let translated=SessionMenuRowView(node:node,depth:0,expanded:false,stale:false,interactions:[first],onDisclosure:{}){_,_ in}
+    layout(translated,width:width)
+    for _ in 0..<4 {translated.needsLayout=true;translated.layoutSubtreeIfNeeded()}
+    let buttons=descendants(translated).compactMap{$0 as? NSButton}.filter{[L("允许一次"),L("拒绝")].contains($0.title)}
+    check(buttons.count==2,"translated approval buttons missing: \(language)")
+    for button in buttons {
+     let measured=(button.title as NSString).size(withAttributes:[.font:button.font!]).width
+     check(button.bounds.width>=measured+14,"approval label clipped: \(language) / \(button.title)")
+     if !button.isHiddenOrHasHiddenAncestor {
+      let rect=button.convert(button.bounds,to:translated)
+      check(rect.minX>=0 && rect.maxX<=width && !rect.intersects(translated.title.frame),"translated actions cover session text: \(language)")
+     }
+    }
+   }
+  }
+  UILocalization.set("zh")
   let row=SessionMenuRowView(node:node,depth:0,expanded:false,stale:false,interactions:[first],onDisclosure:{}){item,action in calls.append(item.requestId+":"+action.rawValue)}
   layout(row,width:400)
   for _ in 0..<4 {row.needsLayout=true;row.layoutSubtreeIfNeeded()}
